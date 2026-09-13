@@ -51,13 +51,13 @@ class TTKMANIFOLDCHECK_EXPORT ttkManifoldCheck : public ttkAlgorithm,
 
 public:
   static ttkManifoldCheck *New();
-  vtkTypeMacro(ttkManifoldCheck, ttkAlgorithm)
+  vtkTypeMacro(ttkManifoldCheck, ttkAlgorithm);
 
-    protected :
+protected:
+  ttkManifoldCheck();
 
-    ttkManifoldCheck();
-
-  ~ttkManifoldCheck() override{};
+  ~ttkManifoldCheck() override = default;
+  ;
 
   int FillInputPortInformation(int port, vtkInformation *info) override;
 

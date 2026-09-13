@@ -18,13 +18,13 @@ int ttkProgramBase::execute() {
   return 0;
 }
 
-int ttkProgramBase::load(const vector<string> &inputPaths) {
+int ttkProgramBase::load(const std::vector<std::string> &inputPaths) {
 
   int ret = -1;
 
   for(int i = 0; i < (int)inputPaths.size(); i++) {
 
-    string extension
+    string const extension
       = inputPaths[i].substr(inputPaths[i].find_last_of('.') + 1);
 
     if(extension == "vti") {
@@ -36,8 +36,8 @@ int ttkProgramBase::load(const vector<string> &inputPaths) {
         inputPaths[i], unstructuredGridReaders_);
     } else {
       stringstream msg;
-      msg << "[ttkProgramBase] Unkown input extension `" << extension << "' :("
-          << endl;
+      msg << "[ttkProgramBase] Unknown input extension `" << extension << "' :("
+          << std::endl;
       printErr(msg.str());
       return -1;
     }

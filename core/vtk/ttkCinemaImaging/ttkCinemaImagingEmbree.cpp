@@ -16,8 +16,7 @@
 ttk::ttkCinemaImagingEmbree::ttkCinemaImagingEmbree() {
   this->setDebugMsgPrefix("CinemaImaging(Embree)");
 };
-ttk::ttkCinemaImagingEmbree::~ttkCinemaImagingEmbree() {
-}
+ttk::ttkCinemaImagingEmbree::~ttkCinemaImagingEmbree() = default;
 
 int ttk::ttkCinemaImagingEmbree::RenderVTKObject(
   vtkMultiBlockDataSet *outputImages,
@@ -26,7 +25,7 @@ int ttk::ttkCinemaImagingEmbree::RenderVTKObject(
   vtkPointSet *inputGrid) const {
   int status = 0;
 
-#if TTK_ENABLE_EMBREE
+#ifdef TTK_ENABLE_EMBREE
 
   auto inputObjectCells = ttkCinemaImaging::GetCells(inputObject);
 
@@ -56,7 +55,7 @@ int ttk::ttkCinemaImagingEmbree::RenderVTKObject(
   this->printMsg(ttk::debug::Separator::L2);
   float *samplingPositions
     = static_cast<float *>(ttkUtils::GetVoidPointer(inputGrid->GetPoints()));
-  int nSamplingPositions = inputGrid->GetNumberOfPoints();
+  int const nSamplingPositions = inputGrid->GetNumberOfPoints();
   auto camParameters = inputGrid->GetPointData();
   auto camUp = static_cast<double *>(
     ttkUtils::GetVoidPointer(camParameters->GetArray("CamUp")));
@@ -85,7 +84,7 @@ int ttk::ttkCinemaImagingEmbree::RenderVTKObject(
     outputImage->SetOrigin(0, 0, 0);
     outputImage->AllocateScalars(VTK_FLOAT, 1);
 
-    size_t nPixels = resolution[i * 2] * resolution[i * 2 + 1];
+    size_t const nPixels = resolution[i * 2] * resolution[i * 2 + 1];
     auto outputImagePD = outputImage->GetPointData();
 
     auto depthBuffer = outputImagePD->GetArray(0);

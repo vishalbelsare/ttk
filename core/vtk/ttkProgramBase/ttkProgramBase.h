@@ -4,10 +4,9 @@
 /// \date February 2017.
 ///
 /// \brief Base VTK editor class for standalone programs. This class parses the
-/// the comamnd line, execute the TTK module and takes care of the IO.
+/// the command line, execute the TTK module and takes care of the IO.
 
-#ifndef _TTK_PROGRAM_BASE_H
-#define _TTK_PROGRAM_BASE_H
+#pragma once
 
 // VTK IO
 #include <vtkDataSet.h>
@@ -34,17 +33,18 @@ class TTKPROGRAMBASE_EXPORT ttkProgramBase : public ttk::ProgramBase {
 public:
   ttkProgramBase() {
 
-    vtkWrapper_ = NULL;
+    vtkWrapper_ = nullptr;
   };
 
-  ~ttkProgramBase() override{};
+  ~ttkProgramBase() override = default;
+  ;
 
   /// Set the arguments of your ttk module and execute it here.
   int execute() override;
 
   vtkDataSet *getInput(const int &inputId) {
     if((inputId < 0) || (inputId >= (int)inputs_.size()))
-      return NULL;
+      return nullptr;
     return inputs_[inputId];
   }
 
@@ -52,7 +52,7 @@ public:
     return inputs_.size();
   };
 
-  virtual int run() override {
+  int run() override {
 
     if(!vtkWrapper_) {
       return -1;
@@ -68,7 +68,7 @@ public:
   }
 
   /// Save the output(s) of the TTK module.
-  virtual int save() const override;
+  int save() const override;
 
   virtual int setTTKmodule(vtkDataSetAlgorithm *ttkModule) {
 
@@ -91,7 +91,7 @@ protected:
            std::vector<vtkSmartPointer<vtkReaderClass>> &readerList);
 
   /// Load a sequence of input data-sets.
-  virtual int load(const std::vector<std::string> &inputPaths) override;
+  int load(const std::vector<std::string> &inputPaths) override;
 
   template <class vtkWriterClass>
   int save(const int &outputPortId) const;
@@ -107,7 +107,7 @@ public:
     ttkModule_ = (Debug *)ttkObject_.GetPointer();
   }
 
-  virtual int run() {
+  int run() override {
     return ttkProgramBase::run();
   }
 
@@ -146,7 +146,7 @@ int ttkProgramBase::save(const int &outputPortId) const {
   std::stringstream fileName;
   fileName << outputPath_ << "_port#" << outputPortId << "." << extension;
 
-  vtkSmartPointer<vtkWriterClass> writer
+  vtkSmartPointer<vtkWriterClass> const writer
     = vtkSmartPointer<vtkWriterClass>::New();
   writer->SetFileName(fileName.str().data());
   writer->SetInputData(vtkWrapper_->GetOutput(outputPortId));
@@ -202,5 +202,3 @@ int ttkProgramBase::load(
 
   return 0;
 }
-
-#endif // VTK_PROGRAM_BASE_H

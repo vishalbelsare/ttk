@@ -2,7 +2,7 @@
 /// \class ttk::AssignmentSolver
 /// \author Mathieu Pont (mathieu.pont@lip6.fr)
 ///
-/// Assignement Problem Solver abstract class
+/// Assignment Problem Solver abstract class
 ///
 /// For the unbalanced problem:
 ///   The cost matrix in input has a size of (n + 1) x (m + 1)
@@ -11,12 +11,10 @@
 ///   - the mth column is the same but with jobs
 ///   - the last cell (costMatrix[n][m]) is not used
 
-#ifndef _ASSIGNMENTSOLVER_H
-#define _ASSIGNMENTSOLVER_H
-
-#define asgnMatchingTuple std::tuple<int, int, double>
+#pragma once
 
 #include <Debug.h>
+#include <PersistenceDiagramUtils.h>
 
 namespace ttk {
 
@@ -26,9 +24,9 @@ namespace ttk {
   public:
     AssignmentSolver() = default;
 
-    virtual ~AssignmentSolver() = default;
+    ~AssignmentSolver() override = default;
 
-    virtual int run(std::vector<asgnMatchingTuple> &matchings) = 0;
+    virtual int run(std::vector<MatchingType> &matchings) = 0;
 
     virtual inline void clear() {
       rowSize = 0;
@@ -67,7 +65,7 @@ namespace ttk {
 
     void printTableVector(std::vector<std::vector<dataType>> &table) {
       for(auto vecTemp : table) {
-        std::stringstream ss;
+        const std::stringstream ss;
         for(auto valTemp : vecTemp) {
           ss << valTemp << " ";
         }
@@ -85,5 +83,3 @@ namespace ttk {
     bool balancedAssignment;
   };
 } // namespace ttk
-
-#endif

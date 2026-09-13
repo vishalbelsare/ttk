@@ -6,12 +6,10 @@ using namespace ttk;
 AbstractTriangulation::AbstractTriangulation() {
 
   setDebugMsgPrefix("AbstractTriangulation");
-
   clear();
 }
 
-AbstractTriangulation::~AbstractTriangulation() {
-}
+AbstractTriangulation::~AbstractTriangulation() = default;
 
 int AbstractTriangulation::clear() {
 
@@ -35,6 +33,7 @@ int AbstractTriangulation::clear() {
   hasPreconditionedVertexNeighbors_ = false;
   hasPreconditionedVertexStars_ = false;
   hasPreconditionedVertexTriangles_ = false;
+  hasPreconditionedManifold_ = false;
 
   boundaryEdges_.clear();
   boundaryTriangles_.clear();

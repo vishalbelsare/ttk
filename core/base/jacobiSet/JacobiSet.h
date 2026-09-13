@@ -20,6 +20,10 @@
 /// Foundations of Computational Mathematics. Cambridge University Press, 2002.
 ///
 /// \sa ttkJacobiSet.cpp %for a usage example.
+///
+/// \b Online \b examples: \n
+///   - <a href="https://topology-tool-kit.github.io/examples/builtInExample2/">
+///   Builtin example 2</a> \n
 
 #pragma once
 
@@ -41,7 +45,7 @@ namespace ttk {
                 const dataTypeU *const uField,
                 const dataTypeV *const vField,
                 const triangulationType &triangulation,
-                std::vector<char> *isPareto = NULL);
+                std::vector<char> *isPareto = nullptr);
 
     template <class dataTypeU, class dataTypeV, typename triangulationType>
     char getCriticalType(const SimplexId &edgeId,
@@ -50,11 +54,10 @@ namespace ttk {
                          const triangulationType &triangulation);
 
     template <class dataTypeU, class dataTypeV>
-    int perturbate(const dataTypeU *const uField,
-                   const dataTypeV *const vField,
-                   const dataTypeU uEpsilon = Geometry::powIntTen(-DBL_DIG),
-                   const dataTypeV vEpsilon
-                   = Geometry::powIntTen(-DBL_DIG)) const;
+    int perturb(const dataTypeU *const uField,
+                const dataTypeV *const vField,
+                const dataTypeU uEpsilon = Geometry::powIntTen(-DBL_DIG),
+                const dataTypeV vEpsilon = Geometry::powIntTen(-DBL_DIG)) const;
 
     inline void
       setEdgeFans(const std::vector<std::vector<SimplexId>> *edgeFans) {
@@ -81,7 +84,7 @@ namespace ttk {
      * @pre For this function to behave correctly in the absence of
      * the VTK wrapper, ttk::preconditionOrderArray() needs to be
      * called to fill the @p sosOffsets buffer prior to any
-     * computation (the VTK wrapper already includes a mecanism to
+     * computation (the VTK wrapper already includes a mechanism to
      * automatically generate such a preconditioned buffer).
      * @see examples/c++/main.cpp for an example use.
      */
@@ -93,7 +96,7 @@ namespace ttk {
      * @pre For this function to behave correctly in the absence of
      * the VTK wrapper, ttk::preconditionOrderArray() needs to be
      * called to fill the @p sosOffsets buffer prior to any
-     * computation (the VTK wrapper already includes a mecanism to
+     * computation (the VTK wrapper already includes a mechanism to
      * automatically generate such a preconditioned buffer).
      * @see examples/c++/main.cpp for an example use.
      */

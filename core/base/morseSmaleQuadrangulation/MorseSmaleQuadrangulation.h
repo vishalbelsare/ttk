@@ -10,6 +10,11 @@
 ///
 ///
 /// \sa ttkMorseSmaleQuadrangulation.cpp % for a usage example.
+///
+/// \b Online \b examples: \n
+///   - <a
+///   href="https://topology-tool-kit.github.io/examples/morseSmaleQuadrangulation/">Morse-Smale
+///   Quadrangulation example</a> \n
 
 #pragma once
 
@@ -213,10 +218,8 @@ namespace ttk {
     std::vector<SimplexId> sepMids_{};
     // sub-segmentation of Morse-Smale cells
     std::vector<SimplexId> morseSeg_{};
-    // for each cell, the corresponding index in morseSeg_
-    std::vector<SimplexId> cellId_{};
-    // indices of separatrices that border quads
-    std::vector<std::vector<size_t>> quadSeps_{};
+    // morseSeg_ id -> separatrices that border quads id
+    std::vector<std::pair<SimplexId, std::vector<size_t>>> quadSeps_{};
 
   protected:
     // array of output quads
@@ -302,7 +305,7 @@ int ttk::MorseSmaleQuadrangulation::detectCellSeps(
       = (critPoints % 2 == 0) ? critPoints / 2 - 1 : critPoints / 2;
 
     // current point
-    SimplexId curr{critPointId(i)};
+    SimplexId const curr{critPointId(i)};
 
     // get edge id
     auto ne = newT.getVertexEdgeNumber(curr);
@@ -383,7 +386,7 @@ int ttk::MorseSmaleQuadrangulation::detectCellSeps(
 
   // look around the saddle points
   for(size_t i = 0; i < saddles.size(); ++i) {
-    SimplexId saddle = saddles[i];
+    SimplexId const saddle = saddles[i];
 
     auto sadtri = newT.getVertexTriangleNumber(saddle);
 
@@ -395,9 +398,9 @@ int ttk::MorseSmaleQuadrangulation::detectCellSeps(
       SimplexId tr;
       newT.getVertexTriangle(saddle, j, tr);
 
-      std::set<SimplexId> sepIdBeg = sepIdAroundTriangle(tr);
+      std::set<SimplexId> const sepIdBeg = sepIdAroundTriangle(tr);
       // current iteration id
-      SimplexId iter = i * sadtri + j;
+      SimplexId const iter = i * sadtri + j;
 
       toProcess.push(tr);
 
@@ -427,7 +430,7 @@ int ttk::MorseSmaleQuadrangulation::detectCellSeps(
 #endif // TTK_ENABLE_OPENMP
 
         // check for saddle at vertices
-        bool hasSaddle = hasTriangleSaddle(curr);
+        bool const hasSaddle = hasTriangleSaddle(curr);
 
         // check for separatrices on edges
         auto sepIdEnd = sepIdAroundTriangle(curr);
@@ -444,8 +447,7 @@ int ttk::MorseSmaleQuadrangulation::detectCellSeps(
 #endif // TTK_ENABLE_OPENMP
             {
               // keep indices in sync
-              quadSeps_.emplace_back(cellSeps);
-              cellId_.emplace_back(iter);
+              quadSeps_.emplace_back(iter, cellSeps);
             }
           }
         }
@@ -504,6 +506,14 @@ int ttk::MorseSmaleQuadrangulation::detectCellSeps(
       }
     }
   }
+
+  if(this->threadNumber_ > 1) {
+    // sort quadSeps_ according to cellIds_ to get a deterministic
+    // output when filled in parallel
+    TTK_PSORT(this->threadNumber_, quadSeps_.begin(), quadSeps_.end());
+    // (by default, pairs are sorted by their first element)
+  }
+
   return 0;
 }
 
@@ -530,7 +540,6 @@ int ttk::MorseSmaleQuadrangulation::quadrangulate(
   sepEnds_.resize(numSeps);
   morseSeg_.resize(verticesNumber_);
   std::fill(morseSeg_.begin(), morseSeg_.end(), -1);
-  cellId_.clear();
   quadSeps_.clear();
 
   // fill in data arrays
@@ -544,7 +553,9 @@ int ttk::MorseSmaleQuadrangulation::quadrangulate(
 
   outputCells_.reserve(quadSeps_.size());
 
-  for(const auto &qs : quadSeps_) {
+  for(const auto &qsp : quadSeps_) {
+
+    const auto &qs{qsp.second};
 
     std::vector<LongSimplexId> srcs{};
     std::vector<LongSimplexId> dsts{};
@@ -552,8 +563,8 @@ int ttk::MorseSmaleQuadrangulation::quadrangulate(
     findSepsVertices(qs, srcs, dsts);
 
     // remove duplicates
-    std::set<LongSimplexId> srcs_set(srcs.begin(), srcs.end());
-    std::set<LongSimplexId> dsts_set(dsts.begin(), dsts.end());
+    std::set<LongSimplexId> const srcs_set(srcs.begin(), srcs.end());
+    std::set<LongSimplexId> const dsts_set(dsts.begin(), dsts.end());
     srcs.assign(srcs_set.begin(), srcs_set.end());
     dsts.assign(dsts_set.begin(), dsts_set.end());
 
@@ -616,8 +627,9 @@ size_t ttk::MorseSmaleQuadrangulation::findSeparatrixMiddle(
   }
 
   // index in separatrices point data array of separatrix middle
-  auto pos = a + std::min_element(distFromA.begin(), distFromA.end())
-             - distFromA.begin();
+  auto pos = a
+             + (std::min_element(distFromA.begin(), distFromA.end())
+                - distFromA.begin());
 
   // new point!
   outputPoints_.emplace_back(sepPoints_[dim * pos]);
@@ -658,7 +670,7 @@ int ttk::MorseSmaleQuadrangulation::subdiviseDegenerateQuads(
 
   for(size_t i = 0; i < outputCells_.size(); ++i) {
     auto q = outputCells_[i];
-    auto seps = quadSeps_[i];
+    auto seps = quadSeps_[i].second;
 
     // don't deal with normal quadrangles
     if(q[1] != q[3]) {
@@ -681,8 +693,8 @@ int ttk::MorseSmaleQuadrangulation::subdiviseDegenerateQuads(
       }
     }
     // extremum index
-    LongSimplexId vert2Seps = count_vi > count_vk ? q[0] : q[2];
-    LongSimplexId vert1Sep = count_vi > count_vk ? q[2] : q[0];
+    LongSimplexId const vert2Seps = count_vi > count_vk ? q[0] : q[2];
+    LongSimplexId const vert1Sep = count_vi > count_vk ? q[2] : q[0];
     // the two seps from j to vert2Seps
     std::vector<size_t> borderseps{};
     for(size_t j = 0; j < seps.size(); ++j) {
@@ -697,8 +709,8 @@ int ttk::MorseSmaleQuadrangulation::subdiviseDegenerateQuads(
 
     // find a midpoint between the two extrema on the triangulation
 
-    std::vector<SimplexId> boundi{criticalPointsIdentifier_[q[0]]};
-    std::vector<SimplexId> boundk{criticalPointsIdentifier_[q[2]]};
+    std::vector<SimplexId> const boundi{criticalPointsIdentifier_[q[0]]};
+    std::vector<SimplexId> const boundk{criticalPointsIdentifier_[q[2]]};
     std::array<std::vector<float>, 6> outputDists{};
 
     Dijkstra::shortestPath(
@@ -737,9 +749,9 @@ int ttk::MorseSmaleQuadrangulation::subdiviseDegenerateQuads(
 
     // find two other points
 
-    std::vector<SimplexId> bounds{criticalPointsIdentifier_[q[0]],
-                                  criticalPointsIdentifier_[q[1]],
-                                  criticalPointsIdentifier_[q[2]]};
+    std::vector<SimplexId> const bounds{criticalPointsIdentifier_[q[0]],
+                                        criticalPointsIdentifier_[q[1]],
+                                        criticalPointsIdentifier_[q[2]]};
 
     auto m0Pos = sepMids_[borderseps[0]];
     auto m1Pos = sepMids_[borderseps[1]];
@@ -807,7 +819,7 @@ int ttk::MorseSmaleQuadrangulation::subdivise(
   }
 
   // for each output quad, its barycenter position in outputPoints_
-  std::vector<size_t> cellBary(outputCells_.size());
+  std::vector<size_t> const cellBary(outputCells_.size());
 
   std::array<std::vector<float>, 4> outputDists{};
 
@@ -817,7 +829,7 @@ int ttk::MorseSmaleQuadrangulation::subdivise(
 
   for(size_t i = 0; i < outputCells_.size(); ++i) {
     auto q = outputCells_[i];
-    auto seps = quadSeps_[i];
+    auto seps = quadSeps_[i].second;
 
     // skip degenerate case here
     if(q[1] == q[3]) {
@@ -834,7 +846,7 @@ int ttk::MorseSmaleQuadrangulation::subdivise(
     // find barycenter of current cell (c.f. QuadrangulationSubdivision.cpp)
 
     // bound Dijkstra by parent quad vertices
-    std::vector<SimplexId> bounds{
+    std::vector<SimplexId> const bounds{
       criticalPointsIdentifier_[q[0]], criticalPointsIdentifier_[q[1]],
       criticalPointsIdentifier_[q[2]], criticalPointsIdentifier_[q[3]]};
 
@@ -842,7 +854,7 @@ int ttk::MorseSmaleQuadrangulation::subdivise(
     std::vector<bool> mask(morseSeg_.size(), false);
     // restrict Dijkstra propagation to current cell
     for(size_t j = 0; j < morseSeg_.size(); ++j) {
-      if(morseSeg_[j] == cellId_[i]) {
+      if(morseSeg_[j] == quadSeps_[i].first) {
         mask[j] = true;
       }
     }
@@ -876,7 +888,7 @@ int ttk::MorseSmaleQuadrangulation::subdivise(
 #endif // TTK_ENABLE_OPENMP
     for(size_t j = 0; j < sum.size(); ++j) {
       // skip if vertex j not in cell i
-      if(morseSeg_[j] != cellId_[i]) {
+      if(morseSeg_[j] != quadSeps_[i].first) {
         continue;
       }
       auto m = outputDists[0][j];
@@ -890,7 +902,7 @@ int ttk::MorseSmaleQuadrangulation::subdivise(
       sum[j] = m + n + o + p + std::abs(m - o) + std::abs(n - p);
     }
 
-    size_t verticesInCell
+    size_t const verticesInCell
       = verticesNumber_
         - std::count(
           sum.begin(), sum.end(), std::numeric_limits<float>::infinity());
@@ -909,7 +921,7 @@ int ttk::MorseSmaleQuadrangulation::subdivise(
       baryId = std::min_element(sum.begin(), sum.end()) - sum.begin();
     }
 
-    LongSimplexId baryPos = outputPointsIds_.size();
+    LongSimplexId const baryPos = outputPointsIds_.size();
     {
       float x, y, z;
       triangulation.getVertexPoint(baryId, x, y, z);
@@ -1041,7 +1053,7 @@ int ttk::MorseSmaleQuadrangulation::execute(
   size_t ndegen = 0;
 
   // direct quadrangulation with saddle points
-  int ret = quadrangulate(ndegen, triangulation);
+  int const ret = quadrangulate(ndegen, triangulation);
 
   if(ret == 0) {
     subdivise(triangulation);
@@ -1066,8 +1078,12 @@ int ttk::MorseSmaleQuadrangulation::execute(
     }
   }
 
-  this->printMsg("Produced " + std::to_string(outputCells_.size()) + " ("
-                   + std::to_string(ndegen) + " degenerated)",
+  std::string const s_degen{
+    ndegen > 0 ? "(" + std::to_string(ndegen) + " degenerated) " : ""};
+
+  this->printMsg("Produced " + std::to_string(this->outputCells_.size())
+                   + " quads " + s_degen + "("
+                   + std::to_string(this->outputPointsIds_.size()) + " points)",
                  1.0, tm.getElapsedTime(), this->threadNumber_);
 
   return 0;

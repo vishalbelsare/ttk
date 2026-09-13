@@ -1,12 +1,8 @@
 /// \ingroup base
-/// \class FTMTreeUtils
 /// \author Mathieu Pont (mathieu.pont@lip6.fr)
 /// \date 2021.
 ///
 /// Utils function for manipulating FTMTree class
-
-#ifndef _FTMTREEUTILS_H
-#define _FTMTREEUTILS_H
 
 #pragma once
 
@@ -48,10 +44,11 @@ namespace ttk {
     template <class dataType>
     void mergeTreeTemplateToDouble(MergeTree<dataType> &mt,
                                    MergeTree<double> &newMt) {
-      std::vector<double> newScalarsValues;
-      for(auto val : mt.scalarsValues)
-        newScalarsValues.push_back(static_cast<double>(val));
-      newMt = MergeTree<double>(mt.scalars, newScalarsValues, mt.params);
+      auto newScalarsValues = std::make_shared<std::vector<double>>();
+      for(auto val : *mt.scalarsValues)
+        newScalarsValues->push_back(static_cast<double>(val));
+      auto newScalars = std::make_shared<ftm::Scalars>(*mt.scalars);
+      newMt = MergeTree<double>(newScalars, newScalarsValues, mt.params);
       newMt.tree.copyMergeTreeStructure(&(mt.tree));
     }
 
@@ -67,12 +64,26 @@ namespace ttk {
     }
 
     template <class dataType>
+    void mergeTreesTemplateToDouble(
+      std::vector<std::vector<MergeTree<dataType>>> &mts,
+      std::vector<std::vector<MergeTree<double>>> &newMts) {
+      newMts.clear();
+      newMts.reserve(mts.size());
+      for(auto &mt : mts) {
+        std::vector<MergeTree<double>> newMt;
+        mergeTreesTemplateToDouble<dataType>(mt, newMt);
+        newMts.emplace_back(newMt);
+      }
+    }
+
+    template <class dataType>
     void mergeTreeDoubleToTemplate(MergeTree<double> &mt,
                                    MergeTree<dataType> &newMt) {
-      std::vector<dataType> newScalarsValues;
-      for(auto val : mt.scalarsValues)
-        newScalarsValues.push_back(static_cast<dataType>(val));
-      newMt = MergeTree<dataType>(mt.scalars, newScalarsValues, mt.params);
+      auto newScalarsValues = std::make_shared<std::vector<dataType>>();
+      for(auto val : *mt.scalarsValues)
+        newScalarsValues->push_back(static_cast<dataType>(val));
+      auto newScalars = std::make_shared<ftm::Scalars>(*mt.scalars);
+      newMt = MergeTree<dataType>(newScalars, newScalarsValues, mt.params);
       newMt.tree.copyMergeTreeStructure(&(mt.tree));
     }
 
@@ -84,6 +95,19 @@ namespace ttk {
         MergeTree<dataType> newMt;
         mergeTreeDoubleToTemplate<dataType>(mt, newMt);
         newMts.push_back(newMt);
+      }
+    }
+
+    template <class dataType>
+    void mergeTreesDoubleToTemplate(
+      std::vector<std::vector<MergeTree<double>>> &mts,
+      std::vector<std::vector<MergeTree<dataType>>> &newMts) {
+      newMts.clear();
+      newMts.reserve(mts.size());
+      for(auto &mt : mts) {
+        std::vector<MergeTree<dataType>> newMt;
+        mergeTreesDoubleToTemplate<dataType>(mt, newMt);
+        newMts.emplace_back(newMt);
       }
     }
 
@@ -100,17 +124,16 @@ namespace ttk {
     template <class dataType>
     MergeTree<dataType> createEmptyMergeTree(int scalarSize) {
       // Init Scalars
-      ftm::Scalars scalars;
-      scalars.size = scalarSize;
-      dataType *scalarsValues = nullptr;
-      scalars.values = (void *)scalarsValues;
+      auto scalars = std::make_shared<ftm::Scalars>();
+      scalars->size = scalarSize;
+      scalars->values = (void *)nullptr;
 
       // Init Params
-      ftm::Params params;
-      params.treeType = ftm::Join_Split;
+      auto params = std::make_shared<ftm::Params>();
+      params->treeType = ftm::Join_Split;
 
       // Init tree
-      MergeTree<dataType> mergeTree(scalars, params);
+      MergeTree<dataType> const mergeTree(scalars, params);
 
       return mergeTree;
     }
@@ -118,13 +141,14 @@ namespace ttk {
     template <class dataType>
     void setTreeScalars(MergeTree<dataType> &mergeTree,
                         std::vector<dataType> &scalarsVector) {
-      mergeTree.scalarsValues = scalarsVector;
-      mergeTree.scalars.values = (void *)(mergeTree.scalarsValues.data());
-      mergeTree.scalars.size = mergeTree.scalarsValues.size();
+      mergeTree.scalarsValues
+        = std::make_shared<std::vector<dataType>>(scalarsVector);
+      mergeTree.scalars->values = (void *)(mergeTree.scalarsValues->data());
+      mergeTree.scalars->size = mergeTree.scalarsValues->size();
     }
 
     template <class dataType>
-    void getTreeScalars(ftm::FTMTree_MT *tree,
+    void getTreeScalars(const ftm::FTMTree_MT *tree,
                         std::vector<dataType> &scalarsVector) {
       scalarsVector.clear();
       for(unsigned int i = 0; i < tree->getNumberOfNodes(); ++i)
@@ -138,7 +162,7 @@ namespace ttk {
     }
 
     template <class dataType>
-    MergeTree<dataType> copyMergeTree(ftm::FTMTree_MT *tree,
+    MergeTree<dataType> copyMergeTree(const ftm::FTMTree_MT *tree,
                                       bool doSplitMultiPersPairs = false) {
       std::vector<dataType> scalarsVector;
       getTreeScalars<dataType>(tree, scalarsVector);
@@ -147,7 +171,7 @@ namespace ttk {
       std::vector<ftm::idNode> multiPersOrigins;
       if(doSplitMultiPersPairs) {
         multiPersOrigins = tree->getMultiPersOrigins<dataType>(true);
-        for(ftm::idNode nodeOrigin : multiPersOrigins) {
+        for(ftm::idNode const nodeOrigin : multiPersOrigins) {
           scalarsVector[nodeOrigin]
             = tree->getValue<dataType>(tree->getNode(nodeOrigin)->getOrigin());
           scalarsVector.push_back(tree->getValue<dataType>(nodeOrigin));
@@ -165,8 +189,8 @@ namespace ttk {
 
       // Add multi persistence nodes origins
       if(doSplitMultiPersPairs) {
-        for(ftm::idNode nodeOrigin : multiPersOrigins) {
-          int nodeCpt = treeNew->getNumberOfNodes();
+        for(ftm::idNode const nodeOrigin : multiPersOrigins) {
+          int const nodeCpt = treeNew->getNumberOfNodes();
           treeNew->makeNode(nodeCpt);
           treeNew->getNode(nodeCpt)->setOrigin(nodeOrigin);
           treeNew->getNode(nodeOrigin)->setOrigin(nodeCpt);
@@ -177,7 +201,7 @@ namespace ttk {
     }
 
     template <class dataType>
-    MergeTree<dataType> copyMergeTree(MergeTree<dataType> &mergeTree,
+    MergeTree<dataType> copyMergeTree(const MergeTree<dataType> &mergeTree,
                                       bool doSplitMultiPersPairs = false) {
       return copyMergeTree<dataType>(&(mergeTree.tree), doSplitMultiPersPairs);
     }
@@ -188,7 +212,7 @@ namespace ttk {
                                        std::vector<int> &nodeCorr,
                                        bool useBD = true) {
       // Create new tree
-      int newNoNodes = tree->getRealNumberOfNodes() * 2;
+      int const newNoNodes = tree->getRealNumberOfNodes() * 2;
       MergeTree<dataType> mTreeNew = createEmptyMergeTree<dataType>(newNoNodes);
       ftm::FTMTree_MT *treeNew = &(mTreeNew.tree);
       std::vector<dataType> newScalarsVector(newNoNodes, 0);
@@ -205,9 +229,11 @@ namespace ttk {
       for(auto leaf : leaves)
         queue.push(leaf);
       while(!queue.empty()) {
-        ftm::idNode node = queue.front();
+        ftm::idNode const node = queue.front();
         queue.pop();
         ftm::idNode nodeOrigin = tree->getNode(node)->getOrigin();
+        if(tree->isRoot(node) and tree->isFullMerge())
+          nodeOrigin = tree->getMergedRootOrigin<dataType>();
 
         if(useBD) {
           int nodeOriginIndex = treeNew->getNumberOfNodes();
@@ -231,7 +257,7 @@ namespace ttk {
           nodeCorr[nodeOrigin] = nodeOriginIndex;
           nodeCorr[node] = nodeIndex;
         } else {
-          int nodeCpt = treeNew->getNumberOfNodes();
+          int const nodeCpt = treeNew->getNumberOfNodes();
           treeNew->makeNode(nodeCpt);
           if(!tree->isLeaf(node)) {
             treeNew->getNode(nodeCpt)->setOrigin(nodeCorr[nodeOrigin]);
@@ -253,28 +279,29 @@ namespace ttk {
 
         std::vector<idNode> children;
         tree->getChildren(node, children);
-        for(idNode child : children)
+        for(idNode const child : children)
           treeNew->makeSuperArc(nodeCorr[child], nodeCorr[node]);
 
         if(!tree->isRoot(node)) {
-          ftm::idNode parent = tree->getParentSafe(node);
+          ftm::idNode const parent = tree->getParentSafe(node);
           nodeDone[parent] += 1;
           if(nodeDone[parent] == tree->getNumberOfChildren(parent))
             queue.push(parent);
         }
       }
 
-      // Set new scalars
-      setTreeScalars<dataType>(mTreeNew, newScalarsVector);
-
       // Manage full merge
       auto treeRoot = tree->getRoot();
       if(tree->getNode(treeRoot)->getOrigin() == (int)treeRoot) {
         auto treeNewRoot = treeNew->getRoot();
-        // auto treeNewRootOrigin = tree->getNode(treeNewRoot)->getOrigin();
-        // treeNew->getNode(treeNewRootOrigin)->setOrigin(treeNewRootOrigin);
+        auto treeNewRootOrigin = treeNew->getNode(treeNewRoot)->getOrigin();
+        newScalarsVector[treeNewRootOrigin]
+          = tree->getValue<dataType>(tree->getMergedRootOrigin<dataType>());
         treeNew->getNode(treeNewRoot)->setOrigin(treeNewRoot);
       }
+
+      // Set new scalars
+      setTreeScalars<dataType>(mTreeNew, newScalarsVector);
 
       // Return new tree
       return mTreeNew;
@@ -295,5 +322,3 @@ namespace ttk {
 
   } // namespace ftm
 } // namespace ttk
-
-#endif

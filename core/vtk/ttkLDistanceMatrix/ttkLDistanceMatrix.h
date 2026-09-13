@@ -7,6 +7,11 @@
 /// input datasets with the same number of points
 ///
 /// \sa LDistanceMatrix
+///
+/// \b Online \b examples: \n
+///   - <a
+///   href="https://topology-tool-kit.github.io/examples/clusteringKelvinHelmholtzInstabilities/">
+///   Clustering Kelvin Helmholtz Instabilities example</a> \n
 
 #pragma once
 
@@ -35,6 +40,11 @@ protected:
 
   int FillInputPortInformation(int port, vtkInformation *info) override;
   int FillOutputPortInformation(int port, vtkInformation *info) override;
+
+  template <typename T>
+  int dispatch(std::vector<std::vector<double>> &distanceMatrix,
+               const std::vector<vtkDataSet *> &inputData,
+               const size_t nPoints);
 
   int RequestData(vtkInformation *request,
                   vtkInformationVector **inputVector,

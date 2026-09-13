@@ -1,4 +1,3 @@
-#include <iso646.h>
 #include <regex>
 #include <ttkImportEmbeddingFromTable.h>
 
@@ -74,17 +73,16 @@ int ttkImportEmbeddingFromTable::RequestData(
   vtkDataArray *xarr = XColumn.empty()
                          ? nullptr
                          : vtkDataArray::SafeDownCast(
-                           inputTable->GetColumnByName(XColumn.data()));
+                             inputTable->GetColumnByName(XColumn.data()));
   vtkDataArray *yarr = YColumn.empty()
                          ? nullptr
                          : vtkDataArray::SafeDownCast(
-                           inputTable->GetColumnByName(YColumn.data()));
+                             inputTable->GetColumnByName(YColumn.data()));
   vtkDataArray *zarr = ZColumn.empty()
                          ? nullptr
                          : vtkDataArray::SafeDownCast(
-                           inputTable->GetColumnByName(ZColumn.data()));
+                             inputTable->GetColumnByName(ZColumn.data()));
 
-#ifndef TTK_ENABLE_KAMIKAZE
   if(xarr == nullptr or yarr == nullptr or zarr == nullptr) {
     printErr("invalid input columns.");
     return -1;
@@ -100,9 +98,8 @@ int ttkImportEmbeddingFromTable::RequestData(
     printErr("input columns has different data types.");
     return -1;
   }
-#endif
 
-  vtkSmartPointer<vtkPoints> points = vtkSmartPointer<vtkPoints>::New();
+  vtkSmartPointer<vtkPoints> const points = vtkSmartPointer<vtkPoints>::New();
   points->SetNumberOfPoints(numberOfPoints);
 
   switch(xarr->GetDataType()) {

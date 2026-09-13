@@ -13,13 +13,9 @@
 ///
 /// \sa ttkContourForests.cpp %for a usage example.
 
-#ifndef FTMTREE_MT_TPL_H
-#define FTMTREE_MT_TPL_H
+#pragma once
 
 #include <functional>
-#if(defined(__GNUC__) && !defined(__clang__))
-#include <parallel/algorithm>
-#endif
 
 #include "FTMTree_MT.h"
 
@@ -55,23 +51,20 @@ namespace ttk {
 
       // Build Merge treeString using tasks
       Timer precomputeTime;
-      int alreadyDone = leafSearch(mesh);
+      int const alreadyDone = leafSearch(mesh);
       printTime(precomputeTime, "leafSearch " + treeString, 3 + alreadyDone);
 
       Timer buildTime;
       leafGrowth(mesh);
-#ifdef TTK_ENABLE_FTM_TREE_PROCESS_SPEED
-      // count process
-      for(SimplexId i = 0; i < scalars_->size; i++) {
-        if((*mt_data_.vert2tree)[i] != nullCorresp)
-          ++nbProcessed;
-      }
-#endif
       printTime(buildTime, "leafGrowth " + treeString, 3);
 
       Timer bbTime;
       trunk(mesh, ct);
       printTime(bbTime, "trunk " + treeString, 3);
+
+      if(this->getNumberOfNodes() != this->getNumberOfSuperArcs() + 1) {
+        this->printErr(treeString + " not a tree!");
+      }
 
       // Segmentation
       if(ct && params_->segm) {
@@ -94,7 +87,7 @@ namespace ttk {
 
         // Extrema extract and launch tasks
         for(SimplexId chunkId = 0; chunkId < chunkNb; ++chunkId) {
-#ifdef TTK_ENABLE_OPENMP
+#ifdef TTK_ENABLE_OPENMP4
 #pragma omp task firstprivate(chunkId) OPTIONAL_PRIORITY(isPrior())
 #endif
           {
@@ -106,12 +99,12 @@ namespace ttk {
               valence val = 0;
 
               for(valence n = 0; n < neighNumb; ++n) {
-                SimplexId neigh;
+                SimplexId neigh{-1};
                 mesh->getVertexNeighbor(v, n, neigh);
                 comp_.vertLower(neigh, v) && ++val;
               }
 
-              (*mt_data_.valences)[v] = val;
+              mt_data_.valences[v] = val;
 
               if(!val) {
                 makeNode(v);
@@ -120,7 +113,7 @@ namespace ttk {
           }
         }
 
-#ifdef TTK_ENABLE_OPENMP
+#ifdef TTK_ENABLE_OPENMP4
 #pragma omp taskwait
 #endif
       } else {
@@ -129,8 +122,8 @@ namespace ttk {
 
       // fill leaves
       const auto &nbLeaves = mt_data_.nodes->size();
-      mt_data_.leaves->resize(nbLeaves);
-      std::iota(mt_data_.leaves->begin(), mt_data_.leaves->end(), 0);
+      mt_data_.leaves.resize(nbLeaves);
+      std::iota(mt_data_.leaves.begin(), mt_data_.leaves.end(), 0);
 
       if(debugLevel_ >= 4) {
         this->printMsg("found " + std::to_string(nbLeaves) + " leaves");
@@ -140,7 +133,7 @@ namespace ttk {
       mt_data_.superArcs->reserve(nbLeaves * 2 + 1);
 #ifdef TTK_ENABLE_FTM_TREE_STATS_TIME
       createVector<ActiveTask>(mt_data_.activeTasksStats);
-      mt_data_.activeTasksStats->resize(nbLeaves * 2 + 1);
+      mt_data_.activeTasksStats.resize(nbLeaves * 2 + 1);
 #endif
 
       return ret;
@@ -152,7 +145,7 @@ namespace ttk {
     void FTMTree_MT::leafGrowth(const triangulationType *mesh) {
       _launchGlobalTime.reStart();
 
-      const auto &nbLeaves = mt_data_.leaves->size();
+      const auto &nbLeaves = mt_data_.leaves.size();
 
       // memory allocation here
       initVectStates(nbLeaves + 2);
@@ -160,12 +153,14 @@ namespace ttk {
       // elevation: backbone only
       if(nbLeaves == 1) {
         const SimplexId v = (*mt_data_.nodes)[0].getVertexId();
-        (*mt_data_.openedNodes)[v] = 1;
-        (*mt_data_.ufs)[v] = new AtomicUF(v);
+        mt_data_.openedNodes[v] = 1;
+        mt_data_.storage.emplace_back(v);
+        mt_data_.ufs[v] = &mt_data_.storage[0];
         return;
       }
 
       mt_data_.activeTasks = nbLeaves;
+      mt_data_.storage.resize(nbLeaves);
 
       auto comp = [this](const idNode a, const idNode b) {
 #ifdef HIGHER
@@ -176,21 +171,22 @@ namespace ttk {
           this->getNode(a)->getVertexId(), this->getNode(b)->getVertexId());
 #endif
       };
-      sort(mt_data_.leaves->begin(), mt_data_.leaves->end(), comp);
+      sort(mt_data_.leaves.begin(), mt_data_.leaves.end(), comp);
 
       for(idNode n = 0; n < nbLeaves; ++n) {
-        const idNode l = (*mt_data_.leaves)[n];
-        SimplexId v = getNode(l)->getVertexId();
-        // for each node: get vert, create uf and lauch
-        (*mt_data_.ufs)[v] = new AtomicUF(v);
+        const idNode l = mt_data_.leaves[n];
+        SimplexId const v = getNode(l)->getVertexId();
+        // for each node: get vert, create uf and launch
+        mt_data_.storage[n] = AtomicUF{v};
+        mt_data_.ufs[v] = &mt_data_.storage[n];
 
-#ifdef TTK_ENABLE_OPENMP
+#ifdef TTK_ENABLE_OPENMP4
 #pragma omp task UNTIED() OPTIONAL_PRIORITY(isPrior())
 #endif
         arcGrowth(mesh, v, n);
       }
 
-#ifdef TTK_ENABLE_OPENMP
+#ifdef TTK_ENABLE_OPENMP4
 #pragma omp taskwait
 #endif
     }
@@ -205,7 +201,7 @@ namespace ttk {
 
       // local order (ignore non regular verts)
       SimplexId localOrder = -1;
-      UF startUF = (*mt_data_.ufs)[startVert]->find();
+      UF startUF = mt_data_.ufs[startVert]->find();
       // get or recover states
       CurrentState *currentState;
       if(startUF->getNbStates()) {
@@ -223,8 +219,8 @@ namespace ttk {
       bool seenFirst = false;
 
       // ARC OPENING
-      idNode startNode = getCorrespondingNodeId(startVert);
-      idSuperArc currentArc = openSuperArc(startNode);
+      idNode const startNode = getCorrespondingNodeId(startVert);
+      idSuperArc const currentArc = openSuperArc(startNode);
       startUF->addArcToClose(currentArc);
 #ifdef TTK_ENABLE_FTM_TREE_STATS_TIME
       (*mt_data_.activeTasksStats)[currentArc].begin
@@ -236,7 +232,7 @@ namespace ttk {
       while(!currentState->empty()) {
         // Next vertex
 
-        SimplexId currentVert = currentState->getNextMinVertex();
+        SimplexId const currentVert = currentState->getNextMinVertex();
 
         // ignore duplicate
         if(!isCorrespondingNull(currentVert)
@@ -254,17 +250,17 @@ namespace ttk {
         }
 
         // local order to avoid sort
-        (*mt_data_.visitOrder)[currentVert] = localOrder++;
+        mt_data_.visitOrder[currentVert] = localOrder++;
 
         // Saddle & Last detection + propagation
         bool isSaddle, isLast;
-        std::tie(isSaddle, isLast) = propage(mesh, *currentState, startUF);
+        std::tie(isSaddle, isLast) = propagate(mesh, *currentState, startUF);
 
         // regular propagation
-#ifdef TTK_ENABLE_OPENMP
+#ifdef TTK_ENABLE_OPENMP4
 #pragma omp atomic write seq_cst
 #endif
-        (*mt_data_.ufs)[currentVert] = startUF;
+        mt_data_.ufs[currentVert] = startUF;
 
         // Saddle case
         if(isSaddle) {
@@ -274,10 +270,10 @@ namespace ttk {
             = _launchGlobalTime.getElapsedTime();
 #endif
           // need a node on this vertex
-#ifdef TTK_ENABLE_OPENMP
+#ifdef TTK_ENABLE_OPENMP4
 #pragma omp atomic write seq_cst
 #endif
-          (*mt_data_.openedNodes)[currentVert] = 1;
+          mt_data_.openedNodes[currentVert] = 1;
 
           // If last close all and merge
           if(isLast) {
@@ -286,7 +282,7 @@ namespace ttk {
 
             // last task detection
             idNode remainingTasks;
-#ifdef TTK_ENABLE_OPENMP
+#ifdef TTK_ENABLE_OPENMP4
 #pragma omp atomic read seq_cst
 #endif
             remainingTasks = mt_data_.activeTasks;
@@ -296,19 +292,19 @@ namespace ttk {
             }
 
             // made a node on this vertex
-#ifdef TTK_ENABLE_OPENMP
+#ifdef TTK_ENABLE_OPENMP4
 #pragma omp atomic write seq_cst
 #endif
-            (*mt_data_.openedNodes)[currentVert] = 0;
+            mt_data_.openedNodes[currentVert] = 0;
 
             // recursively continue
-#ifdef TTK_ENABLE_OPENMP
+#ifdef TTK_ENABLE_OPENMP4
 #pragma omp taskyield
 #endif
             arcGrowth(mesh, currentVert, orig);
           } else {
             // Active tasks / threads
-#ifdef TTK_ENABLE_OPENMP
+#ifdef TTK_ENABLE_OPENMP4
 #pragma omp atomic update seq_cst
 #endif
             mt_data_.activeTasks--;
@@ -327,16 +323,17 @@ namespace ttk {
 
       // close root
       const SimplexId closeVert = getSuperArc(currentArc)->getLastVisited();
-      bool existCloseNode = isCorrespondingNode(closeVert);
-      idNode closeNode = (existCloseNode) ? getCorrespondingNodeId(closeVert)
-                                          : makeNode(closeVert);
+      bool const existCloseNode = isCorrespondingNode(closeVert);
+      idNode const closeNode = (existCloseNode)
+                                 ? getCorrespondingNodeId(closeVert)
+                                 : makeNode(closeVert);
       closeSuperArc(currentArc, closeNode);
       getSuperArc(currentArc)->decrNbSeen();
-      idNode rootPos = mt_data_.roots->getNext();
+      idNode const rootPos = mt_data_.roots->getNext();
       (*mt_data_.roots)[rootPos] = closeNode;
 
 #ifdef TTK_ENABLE_FTM_TREE_STATS_TIME
-      (*mt_data_.activeTasksStats)[currentArc].end
+      mt_data_.activeTasksStats[currentArc].end
         = _launchGlobalTime.getElapsedTime();
 #endif
     }
@@ -344,9 +341,9 @@ namespace ttk {
     // ------------------------------------------------------------------------
 
     template <class triangulationType>
-    std::tuple<bool, bool> FTMTree_MT::propage(const triangulationType *mesh,
-                                               CurrentState &currentState,
-                                               UF curUF) {
+    std::tuple<bool, bool> FTMTree_MT::propagate(const triangulationType *mesh,
+                                                 CurrentState &currentState,
+                                                 UF curUF) {
       bool becameSaddle = false, isLast = false;
       const auto nbNeigh = mesh->getVertexNeighborNumber(currentState.vertex);
       valence decr = 0;
@@ -356,11 +353,11 @@ namespace ttk {
 
       // propagation / is saddle
       for(valence n = 0; n < nbNeigh; ++n) {
-        SimplexId neigh;
+        SimplexId neigh{-1};
         mesh->getVertexNeighbor(currentState.vertex, n, neigh);
 
         if(comp_.vertLower(neigh, currentState.vertex)) {
-          UF neighUF = (*mt_data_.ufs)[neigh];
+          UF neighUF = mt_data_.ufs[neigh];
 
           // is saddle
           if(!neighUF || neighUF->find() != curUFF) {
@@ -370,18 +367,18 @@ namespace ttk {
           }
 
         } else {
-          if(!(*mt_data_.propagation)[neigh]
-             || (*mt_data_.propagation)[neigh]->find() != curUFF) {
+          if(!mt_data_.propagation[neigh]
+             || mt_data_.propagation[neigh]->find() != curUFF) {
             currentState.addNewVertex(neigh);
-            (*mt_data_.propagation)[neigh] = curUFF;
+            mt_data_.propagation[neigh] = curUFF;
           }
         }
       }
 
       // is last
       valence oldVal;
-      valence &tmp = (*mt_data_.valences)[currentState.vertex];
-#ifdef TTK_ENABLE_OPENMP
+      valence &tmp = mt_data_.valences[currentState.vertex];
+#ifdef TTK_ENABLE_OPENMP4
 #pragma omp atomic capture
 #endif
       {
@@ -407,8 +404,17 @@ namespace ttk {
       // trunkVerts
       trunkVerts.reserve(std::max(SimplexId{10}, nbScalars / 500));
       for(SimplexId v = 0; v < nbScalars; ++v) {
-        if((*mt_data_.openedNodes)[v]) {
-          trunkVerts.emplace_back(v);
+        if(mt_data_.openedNodes[v]) {
+          if(this->isCorrespondingNode(v)) {
+            // parallel leafGrowth can partially build the trunk,
+            // filter out the saddles with an upward arc
+            const auto node{this->getNode(this->getCorrespondingNodeId(v))};
+            if(node->getNumberOfUpSuperArcs() == 0) {
+              trunkVerts.emplace_back(v);
+            }
+          } else {
+            trunkVerts.emplace_back(v);
+          }
         }
       }
       sort(trunkVerts.begin(), trunkVerts.end(), comp_.vertLower);
@@ -419,8 +425,9 @@ namespace ttk {
       // Arcs
       const auto &nbNodes = trunkVerts.size();
       for(idNode n = 1; n < nbNodes; ++n) {
-        idSuperArc na = makeSuperArc(getCorrespondingNodeId(trunkVerts[n - 1]),
-                                     getCorrespondingNodeId(trunkVerts[n]));
+        idSuperArc const na
+          = makeSuperArc(getCorrespondingNodeId(trunkVerts[n - 1]),
+                         getCorrespondingNodeId(trunkVerts[n]));
         getSuperArc(na)->setLastVisited(trunkVerts[n]);
       }
 
@@ -459,28 +466,27 @@ namespace ttk {
     template <class triangulationType>
     void FTMTree_MT::closeAndMergeOnSaddle(const triangulationType *mesh,
                                            SimplexId saddleVert) {
-      idNode closeNode = makeNode(saddleVert);
+      idNode const closeNode = makeNode(saddleVert);
 
       // Union of the UF coming here (merge propagation and closing arcs)
       const auto &nbNeigh = mesh->getVertexNeighborNumber(saddleVert);
       for(valence n = 0; n < nbNeigh; ++n) {
-        SimplexId neigh;
+        SimplexId neigh{-1};
         mesh->getVertexNeighbor(saddleVert, n, neigh);
 
         if(comp_.vertLower(neigh, saddleVert)) {
-          if((*mt_data_.ufs)[neigh]->find()
-             != (*mt_data_.ufs)[saddleVert]->find()) {
-            (*mt_data_.ufs)[saddleVert] = AtomicUF::makeUnion(
-              (*mt_data_.ufs)[saddleVert], (*mt_data_.ufs)[neigh]);
+          if(mt_data_.ufs[neigh]->find() != mt_data_.ufs[saddleVert]->find()) {
+            mt_data_.ufs[saddleVert] = AtomicUF::makeUnion(
+              mt_data_.ufs[saddleVert], mt_data_.ufs[neigh]);
           }
         }
       }
 
       // close arcs on this node
-      closeArcsUF(closeNode, (*mt_data_.ufs)[saddleVert]);
+      closeArcsUF(closeNode, mt_data_.ufs[saddleVert]);
 
-      (*mt_data_.ufs)[saddleVert]->find()->mergeStates();
-      (*mt_data_.ufs)[saddleVert]->find()->setExtrema(saddleVert);
+      mt_data_.ufs[saddleVert]->find()->mergeStates();
+      mt_data_.ufs[saddleVert]->find()->setExtrema(saddleVert);
     }
 
     // ------------------------------------------------------------------------
@@ -488,32 +494,32 @@ namespace ttk {
     template <class triangulationType>
     void FTMTree_MT::closeOnBackBone(const triangulationType *mesh,
                                      SimplexId saddleVert) {
-      idNode closeNode = makeNode(saddleVert);
+      idNode const closeNode = makeNode(saddleVert);
 
       // Union of the UF coming here (merge propagation and closing arcs)
       const auto &nbNeigh = mesh->getVertexNeighborNumber(saddleVert);
       for(valence n = 0; n < nbNeigh; ++n) {
-        SimplexId neigh;
+        SimplexId neigh{-1};
         mesh->getVertexNeighbor(saddleVert, n, neigh);
 
         if(comp_.vertLower(neigh, saddleVert)) {
-          if((*mt_data_.ufs)[neigh]
-             && (*mt_data_.ufs)[neigh]->find()
-                  != (*mt_data_.ufs)[saddleVert]->find()) {
-            (*mt_data_.ufs)[saddleVert] = AtomicUF::makeUnion(
-              (*mt_data_.ufs)[saddleVert], (*mt_data_.ufs)[neigh]);
+          if(mt_data_.ufs[neigh]
+             && mt_data_.ufs[neigh]->find()
+                  != mt_data_.ufs[saddleVert]->find()) {
+            mt_data_.ufs[saddleVert] = AtomicUF::makeUnion(
+              mt_data_.ufs[saddleVert], mt_data_.ufs[neigh]);
           }
         }
       }
 
       // close arcs on this node
-      closeArcsUF(closeNode, (*mt_data_.ufs)[saddleVert]);
+      closeArcsUF(closeNode, mt_data_.ufs[saddleVert]);
     }
 
     // ------------------------------------------------------------------------
 
     template <typename scalarType>
-    void ftm::FTMTree_MT::sortInput(void) {
+    void ftm::FTMTree_MT::sortInput() {
 
       const auto nbVertices = scalars_->size;
       scalars_->sortedVertices.resize(nbVertices);
@@ -529,5 +535,3 @@ namespace ttk {
   } // namespace ftm
 } // namespace ttk
 // Process
-
-#endif /* end of include guard: FTMTREE_MT_TPL_H */

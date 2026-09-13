@@ -4,6 +4,7 @@
 
 #include <vtkCellData.h>
 #include <vtkIdTypeArray.h>
+#include <vtkImageData.h>
 #include <vtkInformation.h>
 #include <vtkIntArray.h>
 #include <vtkLine.h>
@@ -71,7 +72,7 @@ int ttkDiscreteGradient::fillCriticalPoints(
   cellIds->SetName("CellId");
   cellIds->SetNumberOfTuples(nPoints);
 
-  vtkSmartPointer<vtkDataArray> cellScalars{inputScalars->NewInstance()};
+  vtkSmartPointer<vtkDataArray> const cellScalars{inputScalars->NewInstance()};
 #ifndef TTK_ENABLE_KAMIKAZE
   if(!cellScalars) {
     this->printErr("vtkDataArray allocation problem.");
@@ -92,12 +93,6 @@ int ttkDiscreteGradient::fillCriticalPoints(
   PLVertexIdentifiers->SetName(ttk::VertexScalarFieldName);
   PLVertexIdentifiers->SetNumberOfTuples(nPoints);
 
-  vtkNew<vtkIdTypeArray> offsets{}, connectivity{};
-  offsets->SetNumberOfComponents(1);
-  offsets->SetNumberOfTuples(nPoints + 1);
-  connectivity->SetNumberOfComponents(1);
-  connectivity->SetNumberOfTuples(nPoints);
-
 #ifdef TTK_ENABLE_OPENMP
 #pragma omp parallel for num_threads(this->threadNumber_)
 #endif // TTK_ENABLE_OPENMP
@@ -107,16 +102,19 @@ int ttkDiscreteGradient::fillCriticalPoints(
     cellIds->SetTuple1(i, critPoints_cellIds[i]);
     cellScalars->SetTuple1(i, scalars[critPoints_PLVertexIdentifiers[i]]);
     isOnBoundary->SetTuple1(i, critPoints_isOnBoundary[i]);
+#ifdef TTK_ENABLE_MPI
+    if(ttk::hasInitializedMPI()) {
+      PLVertexIdentifiers->SetTuple1(
+        i, triangulation.getVertexGlobalId(critPoints_PLVertexIdentifiers[i]));
+    } else {
+      PLVertexIdentifiers->SetTuple1(i, critPoints_PLVertexIdentifiers[i]);
+    }
+#else
     PLVertexIdentifiers->SetTuple1(i, critPoints_PLVertexIdentifiers[i]);
-    offsets->SetTuple1(i, i);
-    connectivity->SetTuple1(i, i);
+#endif
   }
-  offsets->SetTuple1(nPoints, nPoints);
 
-  vtkNew<vtkCellArray> cells{};
-  cells->SetData(offsets, connectivity);
-  outputCriticalPoints->SetPoints(points);
-  outputCriticalPoints->SetVerts(cells);
+  ttkUtils::CellVertexFromPoints(outputCriticalPoints, points);
 
   vtkPointData *pointData = outputCriticalPoints->GetPointData();
 #ifndef TTK_ENABLE_KAMIKAZE
@@ -126,7 +124,7 @@ int ttkDiscreteGradient::fillCriticalPoints(
   }
 #endif
 
-  pointData->AddArray(cellDimensions);
+  pointData->SetScalars(cellDimensions);
   pointData->AddArray(cellIds);
   pointData->AddArray(cellScalars);
   pointData->AddArray(isOnBoundary);
@@ -148,10 +146,13 @@ int ttkDiscreteGradient::fillGradientGlyphs(
   std::vector<std::array<float, 3>> gradientGlyphs_points;
   std::vector<char> gradientGlyphs_points_pairOrigins;
   std::vector<char> gradientGlyphs_cells_pairTypes;
+  std::vector<SimplexId> gradientGlyphs_point_ids{};
+  std::vector<char> gradientGlyphs_point_dimensions{};
 
-  this->setGradientGlyphs(gradientGlyphs_points,
-                          gradientGlyphs_points_pairOrigins,
-                          gradientGlyphs_cells_pairTypes, triangulation);
+  this->setGradientGlyphs(
+    gradientGlyphs_points, gradientGlyphs_points_pairOrigins,
+    gradientGlyphs_cells_pairTypes, gradientGlyphs_point_ids,
+    gradientGlyphs_point_dimensions, triangulation);
 
   const auto nPoints = gradientGlyphs_points.size();
 
@@ -182,6 +183,14 @@ int ttkDiscreteGradient::fillGradientGlyphs(
   pairTypes->SetNumberOfComponents(1);
   pairTypes->SetName("PairType");
   pairTypes->SetNumberOfTuples(nCells);
+  vtkNew<ttkSimplexIdTypeArray> cellIds{};
+  cellIds->SetNumberOfComponents(1);
+  cellIds->SetName("CellId");
+  cellIds->SetNumberOfTuples(2 * nCells);
+  vtkNew<vtkSignedCharArray> cellDimensions{};
+  cellDimensions->SetNumberOfComponents(1);
+  cellDimensions->SetName("CellDimension");
+  cellDimensions->SetNumberOfTuples(2 * nCells);
 
 #ifdef TTK_ENABLE_OPENMP
 #pragma omp parallel for num_threads(this->threadNumber_)
@@ -192,6 +201,12 @@ int ttkDiscreteGradient::fillGradientGlyphs(
     connectivity->SetTuple1(2 * i, 2 * i);
     connectivity->SetTuple1(2 * i + 1, 2 * i + 1);
     pairTypes->SetTuple1(i, gradientGlyphs_cells_pairTypes[i]);
+    cellIds->SetTuple1(2 * i + 0, gradientGlyphs_point_ids[2 * i + 0]);
+    cellIds->SetTuple1(2 * i + 1, gradientGlyphs_point_ids[2 * i + 1]);
+    cellDimensions->SetTuple1(
+      2 * i + 0, gradientGlyphs_point_dimensions[2 * i + 0]);
+    cellDimensions->SetTuple1(
+      2 * i + 1, gradientGlyphs_point_dimensions[2 * i + 1]);
   }
   offsets->SetTuple1(nCells, connectivity->GetNumberOfTuples());
 
@@ -210,7 +225,9 @@ int ttkDiscreteGradient::fillGradientGlyphs(
 #endif
 
   pointData->AddArray(pairOrigins);
-  cellData->AddArray(pairTypes);
+  pointData->AddArray(cellIds);
+  pointData->AddArray(cellDimensions);
+  cellData->SetScalars(pairTypes);
 
   this->printMsg(
     "Computed gradient glyphs", 1.0, tm.getElapsedTime(), this->threadNumber_);
@@ -226,6 +243,12 @@ int ttkDiscreteGradient::RequestData(vtkInformation *ttkNotUsed(request),
   auto outputCriticalPoints = vtkPolyData::GetData(outputVector, 0);
   auto outputGradientGlyphs = vtkPolyData::GetData(outputVector, 1);
 
+  auto triangulation = ttkAlgorithm::GetTriangulation(input);
+
+  int const keepGoing = checkEmptyMPIInput<ttk::Triangulation>(triangulation);
+  if(keepGoing < 2) {
+    return keepGoing;
+  }
 #ifndef TTK_ENABLE_KAMIKAZE
   if(!input) {
     this->printErr("Input pointer is NULL.");
@@ -241,16 +264,11 @@ int ttkDiscreteGradient::RequestData(vtkInformation *ttkNotUsed(request),
   }
 #endif
 
-  auto triangulation = ttkAlgorithm::GetTriangulation(input);
-  if(triangulation == nullptr) {
-    this->printErr("Triangulation is NULL");
-    return 0;
-  }
   this->preconditionTriangulation(triangulation);
 
   const auto inputScalars = this->GetInputArrayToProcess(0, input);
   auto inputOffsets = ttkAlgorithm::GetOrderArray(
-    input, 0, 1, this->ForceInputOffsetScalarField);
+    input, 0, triangulation, false, 1, this->ForceInputOffsetScalarField);
 
   if(inputScalars == nullptr || inputOffsets == nullptr) {
     this->printErr("Input scalar arrays are NULL");
@@ -268,13 +286,31 @@ int ttkDiscreteGradient::RequestData(vtkInformation *ttkNotUsed(request),
 #endif
 
   // baseCode processing
-  this->setInputScalarField(ttkUtils::GetVoidPointer(inputScalars));
+  this->setInputScalarField(
+    ttkUtils::GetVoidPointer(inputScalars), inputScalars->GetMTime());
   this->setInputOffsets(
     static_cast<SimplexId *>(ttkUtils::GetVoidPointer(inputOffsets)));
 
-  ttkTemplateMacro(triangulation->getType(),
-                   (ret = this->buildGradient<TTK_TT>(
-                      *static_cast<TTK_TT *>(triangulation->getData()))));
+  const auto imageDataInput = vtkImageData::SafeDownCast(input);
+
+  if(Backend == 0) {
+    this->setBackend(BACKEND::CLASSIC_BACKEND);
+  }
+  if(Backend == 1 && !imageDataInput) {
+    this->setBackend(BACKEND::CLASSIC_BACKEND);
+    this->printWrn("The stochastic gradient (IEEE TVCG 2012) can only");
+    this->printWrn("be used on vtkImageData (.vti).");
+    this->printWrn("Defaulting to homotopic expansion (IEE PAMI 2011)");
+  }
+  if(Backend == 1 && imageDataInput) {
+    this->setBackend(BACKEND::STOCHASTIC_BACKEND);
+  }
+  this->setSeed(StochasticGradientSeed);
+
+  ttkVtkTemplateMacro(
+    inputScalars->GetDataType(), triangulation->getType(),
+    (ret = this->buildGradient<VTK_TT, TTK_TT>(
+       *static_cast<TTK_TT *>(triangulation->getData()), true, nullptr)));
 
   if(ret != 0) {
     this->printErr("DiscreteGradient.buildGradient() error code: "
@@ -290,7 +326,10 @@ int ttkDiscreteGradient::RequestData(vtkInformation *ttkNotUsed(request),
 
   // gradient glyphs
   if(ComputeGradientGlyphs) {
-    fillGradientGlyphs(outputGradientGlyphs, *triangulation);
+    ttkTemplateMacro(triangulation->getType(),
+                     (fillGradientGlyphs<TTK_TT>(
+                       outputGradientGlyphs,
+                       *static_cast<TTK_TT *>(triangulation->getData()))));
   }
 
   return 1;

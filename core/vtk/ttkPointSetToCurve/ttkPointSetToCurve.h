@@ -10,6 +10,14 @@
 ///
 /// \param Output content of the data.csv file of the database in form of a
 /// vtkTable
+///
+/// \b Online \b examples: \n
+///   - <a
+///   href="https://topology-tool-kit.github.io/examples/mergeTreePGA/">Merge
+///   Tree Principal Geodesic Analysis example</a> \n
+///   - <a
+///   href="https://topology-tool-kit.github.io/examples/persistenceDiagramPGA/">Persistence
+///   Diagram Principal Geodesic Analysis example</a> \n
 
 #pragma once
 
@@ -30,7 +38,7 @@ public:
 
 protected:
   ttkPointSetToCurve();
-  ~ttkPointSetToCurve() = default;
+  ~ttkPointSetToCurve() override = default;
 
   int FillInputPortInformation(int port, vtkInformation *info) override;
   int FillOutputPortInformation(int port, vtkInformation *info) override;

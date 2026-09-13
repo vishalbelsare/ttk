@@ -27,18 +27,13 @@ ttk_add_base_library(ftmTree
     Boost::boost
     )
 
-option(TTK_ENABLE_FTM_TREE_PROCESS_SPEED "Enable FTM tree process speed" OFF)
-mark_as_advanced(TTK_ENABLE_FTM_TREE_PROCESS_SPEED)
-
 option(TTK_ENABLE_FTM_TREE_STATS_TIME    "Enable FTM tree stats on tasks processing" OFF)
 mark_as_advanced(TTK_ENABLE_FTM_TREE_STATS_TIME)
 
-if (TTK_ENABLE_FTM_TREE_PROCESS_SPEED)
-  target_compile_definitions(ftmTree PUBLIC TTK_ENABLE_FTM_TREE_PROCESS_SPEED)
+if (TTK_ENABLE_FTM_TREE_STATS_TIME)
+  target_compile_definitions(ftmTree PUBLIC TTK_ENABLE_FTM_TREE_STATS_TIME)
 endif()
 
 if (TTK_ENABLE_OPENMP AND TTK_ENABLE_OMP_PRIORITY)
   target_compile_definitions(ftmTree PUBLIC TTK_ENABLE_OMP_PRIORITY)
 endif()
-
-# target_compile_definitions(ftmTree PUBLIC TTK_ENABLE_FTM_TREE_STATS_TIME)

@@ -16,8 +16,7 @@ ttkGeometrySmoother::ttkGeometrySmoother() {
   this->SetNumberOfOutputPorts(1);
 }
 
-ttkGeometrySmoother::~ttkGeometrySmoother() {
-}
+ttkGeometrySmoother::~ttkGeometrySmoother() = default;
 
 int ttkGeometrySmoother::FillInputPortInformation(int port,
                                                   vtkInformation *info) {
@@ -45,8 +44,11 @@ int ttkGeometrySmoother::RequestData(vtkInformation *ttkNotUsed(request),
   auto outputPointSet = vtkPointSet::GetData(outputVector);
 
   auto triangulation = ttkAlgorithm::GetTriangulation(inputPointSet);
-  if(!triangulation)
-    return 0;
+
+  int const keepGoing = checkEmptyMPIInput<ttk::Triangulation>(triangulation);
+  if(keepGoing < 2) {
+    return keepGoing;
+  }
   this->preconditionTriangulation(triangulation);
 
   vtkDataArray *inputMaskField = ttkAlgorithm::GetOptionalArray(
@@ -65,9 +67,9 @@ int ttkGeometrySmoother::RequestData(vtkInformation *ttkNotUsed(request),
   this->setInputDataPointer(ttkUtils::GetVoidPointer(inputPoints));
   this->setOutputDataPointer(ttkUtils::GetVoidPointer(outputPoints));
 
-  if(inputMaskField) {
-    this->setMaskDataPointer(ttkUtils::GetVoidPointer(inputMaskField));
-  }
+  const auto hasMask{this->UseMaskScalarField && inputMaskField != nullptr};
+  this->setMaskDataPointer(hasMask ? ttkUtils::GetPointer<char>(inputMaskField)
+                                   : nullptr);
 
   switch(outputPoints->GetDataType()) {
     vtkTemplateMacro(

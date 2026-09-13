@@ -5,7 +5,7 @@
 ///
 /// \brief TTK VTK-filter that wraps the triangulation processing package.
 ///
-/// VTK wrapping code for the @Triangulation package.
+/// VTK wrapping code for the ttk::Triangulation package.
 ///
 /// \param Input Geometry, either 2D or 3D, either regular grid or
 /// triangulation (vtkDataSet)
@@ -45,6 +45,7 @@ public:
     COMPUTE_COFACET = 2,
     COMPUTE_STAR = 3,
     COMPUTE_LINK = 4,
+    COMPUTE_BOUNDARY = 5,
   };
 
   static ttkTriangulationRequest *New();

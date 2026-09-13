@@ -11,12 +11,17 @@
 /// have vtkDoubleArrays to override the  rendering parameters, i.e, the
 /// resolution, focus, clipping planes, and viewport height.
 ///
-/// VTK wrapping code for the @CinemaImaging package.
+/// VTK wrapping code for the ttk::CinemaImaging package.
 ///
 /// \param Input vtkDataObject that will be depicted (vtkDataObject)
 /// \param Input vtkPointSet that records the camera sampling locations
 /// (vtkPointSet) \param Output vtkMultiBlockDataSet that represents a list of
 /// images (vtkMultiBlockDataSet)
+///
+/// \b Online \b examples: \n
+///   - <a
+///   href="https://topology-tool-kit.github.io/examples/geometryApproximation/">Geometry
+///   Approximation example</a> \n
 
 #pragma once
 
@@ -96,12 +101,12 @@ public:
 
   static int AddFieldDataArray(vtkFieldData *fd,
                                vtkDataArray *array,
-                               int tupelIdx,
+                               int tupleIdx,
                                const std::string &name = "");
 
   static int AddAllFieldDataArrays(vtkPointSet *inputGrid,
                                    vtkImageData *image,
-                                   int tupelIdx);
+                                   int tupleIdx);
 
   static int ComputeDirFromFocalPoint(vtkPointSet *inputGrid);
 
@@ -120,7 +125,7 @@ public:
 
 protected:
   ttkCinemaImaging();
-  ~ttkCinemaImaging();
+  ~ttkCinemaImaging() override;
 
   int FillInputPortInformation(int port, vtkInformation *info) override;
   int FillOutputPortInformation(int port, vtkInformation *info) override;

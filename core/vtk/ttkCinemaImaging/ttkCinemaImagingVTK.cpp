@@ -31,8 +31,7 @@
 ttk::ttkCinemaImagingVTK::ttkCinemaImagingVTK() {
   this->setDebugMsgPrefix("CinemaImaging(VTK)");
 };
-ttk::ttkCinemaImagingVTK::~ttkCinemaImagingVTK() {
-}
+ttk::ttkCinemaImagingVTK::~ttkCinemaImagingVTK() = default;
 
 int ttk::ttkCinemaImagingVTK::setupRenderer(vtkRenderer *renderer,
                                             vtkPointSet *object,
@@ -75,12 +74,12 @@ int ttk::ttkCinemaImagingVTK::addValuePass(
     if(!array)
       continue;
 
-    std::string name(array->GetName());
+    std::string const name(array->GetName());
 
     double minmax[2];
     array->GetRange(minmax);
 
-    size_t nComponents = array->GetNumberOfComponents();
+    size_t const nComponents = array->GetNumberOfComponents();
     for(size_t c = 0; c < nComponents; c++) {
       auto valuePass = vtkSmartPointer<vtkValuePass>::New();
       valuePass->SetInputArrayToProcess(fieldType == 0
@@ -122,7 +121,7 @@ int ttk::ttkCinemaImagingVTK::RenderVTKObject(
   this->printMsg(ttk::debug::Separator::L2);
   float *samplingPositions
     = static_cast<float *>(ttkUtils::GetVoidPointer(inputGrid->GetPoints()));
-  int nSamplingPositions = inputGrid->GetNumberOfPoints();
+  int const nSamplingPositions = inputGrid->GetNumberOfPoints();
   auto camParameters = inputGrid->GetPointData();
   auto camUp = static_cast<double *>(
     ttkUtils::GetVoidPointer(camParameters->GetArray("CamUp")));
@@ -163,6 +162,12 @@ int ttk::ttkCinemaImagingVTK::RenderVTKObject(
   auto windowScalars = vtkSmartPointer<vtkRenderWindow>::New();
   this->setupWindow(windowScalars, rendererScalars, resolution);
 
+  if(windowScalars->SupportsOpenGL() == 0) {
+    // MS Windows in a VM does not support OpenGL
+    this->printErr("RenderWindow does not support OpenGL");
+    return 0;
+  }
+
   auto valuePassCollection = vtkSmartPointer<vtkRenderPassCollection>::New();
   std::vector<std::string> valuePassNames;
   size_t firstValuePassIndex = 0;
@@ -172,7 +177,7 @@ int ttk::ttkCinemaImagingVTK::RenderVTKObject(
     auto cd = object->GetCellData();
 
     if(pd->GetNumberOfArrays() < 1 && cd->GetNumberOfArrays() > 0) {
-      size_t nP = object->GetNumberOfPoints();
+      size_t const nP = object->GetNumberOfPoints();
 
       auto fakeArray = vtkSmartPointer<vtkSignedCharArray>::New();
       fakeArray->SetName("Fake");
@@ -209,8 +214,8 @@ int ttk::ttkCinemaImagingVTK::RenderVTKObject(
 
   for(int i = 0; i < nSamplingPositions; i++) {
     ttk::Timer timer;
-    int resX = resolution[i * 2];
-    int resY = resolution[i * 2 + 1];
+    int const resX = resolution[i * 2];
+    int const resY = resolution[i * 2 + 1];
 
     this->printMsg("Rendering Image ("
                      + std::string(projectionMode[i] ? "P" : "O") + "|"

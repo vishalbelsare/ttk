@@ -39,7 +39,20 @@ int ttkLDistanceMatrix::FillOutputPortInformation(int port,
   return 0;
 }
 
-// to adapt if your wrapper does not inherit from vtkDataSetAlgorithm
+template <typename T>
+int ttkLDistanceMatrix::dispatch(
+  std::vector<std::vector<double>> &distanceMatrix,
+  const std::vector<vtkDataSet *> &inputData,
+  const size_t nPoints) {
+
+  std::vector<const T *> inputPtrs(inputData.size());
+  for(size_t i = 0; i < inputData.size(); ++i) {
+    inputPtrs[i]
+      = ttkUtils::GetPointer<T>(this->GetInputArrayToProcess(0, inputData[i]));
+  }
+  return this->execute(distanceMatrix, inputPtrs, nPoints);
+}
+
 int ttkLDistanceMatrix::RequestData(vtkInformation * /*request*/,
                                     vtkInformationVector **inputVector,
                                     vtkInformationVector *outputVector) {
@@ -81,26 +94,20 @@ int ttkLDistanceMatrix::RequestData(vtkInformation * /*request*/,
 
   std::vector<std::vector<double>> distMatrix{};
 
-  std::vector<void *> inputPtrs(nInputs);
-  for(size_t i = 0; i < nInputs; ++i) {
-    inputPtrs[i]
-      = ttkUtils::GetVoidPointer(this->GetInputArrayToProcess(0, inputData[i]));
-  }
-
   const auto firstField = this->GetInputArrayToProcess(0, inputData[0]);
   const auto dataType = firstField->GetDataType();
   const size_t nPoints = firstField->GetNumberOfTuples();
 
   switch(dataType) {
-    vtkTemplateMacro(distMatrix = this->execute<VTK_TT>(inputPtrs, nPoints));
+    vtkTemplateMacro(this->dispatch<VTK_TT>(distMatrix, inputData, nPoints));
   }
 
   // zero-padd column name to keep Row Data columns ordered
   const auto zeroPad
     = [](std::string &colName, const size_t numberCols, const size_t colIdx) {
-        std::string max{std::to_string(numberCols - 1)};
-        std::string cur{std::to_string(colIdx)};
-        std::string zer(max.size() - cur.size(), '0');
+        std::string const max{std::to_string(numberCols - 1)};
+        std::string const cur{std::to_string(colIdx)};
+        std::string const zer(max.size() - cur.size(), '0');
         colName.append(zer).append(cur);
       };
 

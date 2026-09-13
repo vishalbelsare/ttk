@@ -3,10 +3,9 @@
 /// \author Charles Gueunet <charles.gueunet@lip6.fr>
 /// \date 2017-02-09
 ///
-///\brief TTK processing package that manage a paralle vecrion of vector
+///\brief TTK processing package that manage a parallel vecrion of vector
 
-#ifndef FTMATOMICVECTOR_H
-#define FTMATOMICVECTOR_H
+#pragma once
 
 #ifdef TTK_ENABLE_OPENMP
 #include <omp.h>
@@ -70,7 +69,9 @@ namespace ttk {
           // WARNING: In parallel we do not want to make reserve as it can lead
           // to data race, we should not enter here
 #pragma omp critical(AtomicUFReserve)
-          { std::vector<type>::resize(newSize, defaultValue); }
+          {
+            std::vector<type>::resize(newSize, defaultValue);
+          }
 
         } else
 #endif
@@ -88,16 +89,16 @@ namespace ttk {
       nextId = nId;
     }
 
-    void clear(void) {
+    void clear() {
       reset();
 
       // Remove old content
-      std::size_t oldSize = std::vector<type>::size();
+      std::size_t const oldSize = std::vector<type>::size();
       std::vector<type>::clear();
       reserve(oldSize);
     }
 
-    std::size_t getNext(void) {
+    std::size_t getNext() {
       std::size_t resId;
 #ifdef TTK_ENABLE_OPENMP
 #pragma omp atomic capture
@@ -111,11 +112,11 @@ namespace ttk {
       return resId;
     }
 
-    std::size_t size(void) const {
+    std::size_t size() const {
       return nextId;
     }
 
-    bool empty(void) const {
+    bool empty() const {
       return nextId == 0;
     }
 
@@ -164,5 +165,3 @@ namespace ttk {
     }
   };
 } // namespace ttk
-
-#endif /* end of include guard: FTMATOMICVECTOR_H */

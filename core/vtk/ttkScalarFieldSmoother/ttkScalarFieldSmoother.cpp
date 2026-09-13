@@ -19,8 +19,7 @@ ttkScalarFieldSmoother::ttkScalarFieldSmoother() {
   this->SetNumberOfOutputPorts(1);
 }
 
-ttkScalarFieldSmoother::~ttkScalarFieldSmoother() {
-}
+ttkScalarFieldSmoother::~ttkScalarFieldSmoother() = default;
 
 int ttkScalarFieldSmoother::FillInputPortInformation(int port,
                                                      vtkInformation *info) {
@@ -49,8 +48,10 @@ int ttkScalarFieldSmoother::RequestData(vtkInformation *ttkNotUsed(request),
 
   Triangulation *triangulation = ttkAlgorithm::GetTriangulation(input);
 
-  if(!triangulation)
-    return 0;
+  int const keepGoing = checkEmptyMPIInput<Triangulation>(triangulation);
+  if(keepGoing < 2) {
+    return keepGoing;
+  }
 
   this->preconditionTriangulation(triangulation);
 
@@ -69,7 +70,7 @@ int ttkScalarFieldSmoother::RequestData(vtkInformation *ttkNotUsed(request),
     ForceInputMaskScalarField, 1, ttk::MaskScalarFieldName, input);
 
   // preparing the output
-  vtkSmartPointer<vtkDataArray> outputArray
+  vtkSmartPointer<vtkDataArray> const outputArray
     = vtkSmartPointer<vtkDataArray>::Take(inputScalarField->NewInstance());
   outputArray->SetName(inputScalarField->GetName());
   outputArray->SetNumberOfComponents(1);
@@ -87,8 +88,8 @@ int ttkScalarFieldSmoother::RequestData(vtkInformation *ttkNotUsed(request),
      {"  Mask Array", inputMaskField ? inputMaskField->GetName() : "None"},
      {"  #iterations", std::to_string(NumberOfIterations)}});
 
-  void *inputMaskPtr
-    = (inputMaskField) ? ttkUtils::GetVoidPointer(inputMaskField) : nullptr;
+  const auto inputMaskPtr
+    = (inputMaskField) ? ttkUtils::GetPointer<char>(inputMaskField) : nullptr;
 
   this->setDimensionNumber(inputScalarField->GetNumberOfComponents());
   this->setInputDataPointer(ttkUtils::GetVoidPointer(inputScalarField));
@@ -96,10 +97,10 @@ int ttkScalarFieldSmoother::RequestData(vtkInformation *ttkNotUsed(request),
   this->setMaskDataPointer(inputMaskPtr);
 
   // calling the smoothing package
-  ttkVtkTemplateMacro(
+  ttkTypeMacroAT(
     inputScalarField->GetDataType(), triangulation->getType(),
-    (this->smooth<VTK_TT, TTK_TT>(
-      (TTK_TT *)triangulation->getData(), NumberOfIterations)));
+    (smooth<T0, T1>(
+      static_cast<const T1 *>(triangulation->getData()), NumberOfIterations)));
 
   return 1;
 }

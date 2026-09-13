@@ -1,6 +1,5 @@
 #include <DimensionReduction.h>
-
-#include <map>
+#include <TopoMap.h>
 
 #define VALUE_TO_STRING(x) #x
 #define VALUE(x) VALUE_TO_STRING(x)
@@ -16,6 +15,9 @@ using namespace ttk;
 
 DimensionReduction::DimensionReduction() {
   this->setDebugMsgPrefix("DimensionReduction");
+
+  // default backend
+  this->setInputMethod(METHOD::MDS);
 
 #ifdef TTK_ENABLE_SCIKIT_LEARN
   auto finalize_callback = []() { Py_Finalize(); };
@@ -38,36 +40,81 @@ DimensionReduction::DimensionReduction() {
 #endif
 }
 
-bool DimensionReduction::isPythonFound() const {
-#ifdef TTK_ENABLE_SCIKIT_LEARN
-  return true;
-#else
-  this->printErr("Warning: scikit-learn support disabled: Python/Numpy may "
-                 "not be installed properly");
-  this->printErr("Module features disabled.");
-  return false;
-#endif
-}
+int DimensionReduction::execute(
+  std::vector<std::vector<double>> &outputEmbedding,
+  const std::vector<double> &inputMatrix,
+  const int nRows,
+  const int nColumns,
+  int *insertionTimeForTopomap) const {
 
-int DimensionReduction::execute() const {
-#ifdef TTK_ENABLE_SCIKIT_LEARN
-#ifndef TTK_ENABLE_KAMIKAZE
-  if(majorVersion_ < '3')
-    return -1;
-  if(ModulePath.length() <= 0)
-    return -1;
-  if(ModuleName.length() <= 0)
-    return -1;
-  if(FunctionName.length() <= 0)
-    return -1;
-  if(!matrix_)
-    return -1;
+#ifndef TTK_ENABLE_SCIKIT_LEARN
+  TTK_FORCE_USE(nColumns);
 #endif
 
   Timer t;
 
-  const int numberOfComponents = std::max(2, numberOfComponents_);
-  const int numberOfNeighbors = std::max(1, numberOfNeighbors_);
+  if(this->Method == METHOD::TOPOMAP) {
+    TopoMap topomap(
+      this->topomap_AngularSampleNb, topomap_CheckMST, topomap_Strategy);
+    topomap.setDebugLevel(this->debugLevel_);
+    topomap.setThreadNumber(this->threadNumber_);
+
+    std::vector<double> coordsTopomap(2 * nRows);
+    topomap.execute<double>(coordsTopomap.data(), insertionTimeForTopomap,
+                            inputMatrix, IsInputADistanceMatrix, nRows);
+    outputEmbedding.resize(2);
+    outputEmbedding[0].resize(nRows);
+    outputEmbedding[1].resize(nRows);
+    for(int i = 0; i < nRows; i++) {
+      outputEmbedding[0][i] = coordsTopomap[2 * i];
+      outputEmbedding[1][i] = coordsTopomap[2 * i + 1];
+    }
+
+    this->printMsg(
+      "Computed TopoMap", 1.0, t.getElapsedTime(), this->threadNumber_);
+    return 0;
+  }
+
+  if(this->Method == METHOD::AE) {
+#ifdef TTK_ENABLE_TORCH
+    TopologicalDimensionReduction tcdr(
+      ae_CUDA, ae_Deterministic, ae_Seed, NumberOfComponents, ae_Epochs,
+      ae_LearningRate, ae_Optimizer, ae_Method, ae_Model, ae_Architecture,
+      ae_Activation, ae_BatchSize, ae_BatchNormalization, ae_RegCoefficient,
+      IsInputImages, ae_PreOptimize, ae_PreOptimizeEpochs);
+    tcdr.setDebugLevel(debugLevel_);
+    tcdr.setThreadNumber(threadNumber_);
+
+    outputEmbedding.resize(NumberOfComponents);
+    for(int d = 0; d < NumberOfComponents; d++)
+      outputEmbedding[d].resize(nRows);
+
+    tcdr.execute(outputEmbedding, inputMatrix, nRows);
+
+    this->printMsg("Computed AE dimension reduction", 1.0, t.getElapsedTime(),
+                   threadNumber_);
+    return 0;
+#else
+    this->printErr("Unavailable backend: Torch is required.");
+    return 1;
+#endif
+  }
+
+#ifdef TTK_ENABLE_SCIKIT_LEARN
+#ifndef TTK_ENABLE_KAMIKAZE
+  if(majorVersion_ < '3')
+    return -1;
+  if(ModulePath.empty())
+    return -2;
+  if(ModuleName.empty())
+    return -3;
+  if(FunctionName.empty())
+    return -4;
+#endif
+
+  const int numberOfComponents = std::max(2, this->NumberOfComponents);
+
+  const int numberOfNeighbors = std::max(1, this->NumberOfNeighbors);
 
   // declared here to avoid crossing initialization with goto
   vector<PyObject *> gc;
@@ -98,24 +145,24 @@ int DimensionReduction::execute() const {
 
   string modulePath;
 
-  if(PyArray_API == NULL) {
+  if(PyArray_API == nullptr) {
 #ifndef __clang_analyzer__
     import_array1(-1);
 #endif // __clang_analyzer__
   }
   if(PyArray_API == nullptr) {
-    return -1;
+    return -5;
   }
 
   // convert the input matrix into a NumPy array.
   const int numberOfDimensions = 2;
-  npy_intp dimensions[2]{numberOfRows_, numberOfColumns_};
+  npy_intp dimensions[2]{nRows, nColumns};
 
   std::vector<std::string> methodToString{
     "SE", "LLE", "MDS", "t-SNE", "IsoMap", "PCA"};
 
-  pArray = PyArray_SimpleNewFromData(
-    numberOfDimensions, dimensions, NPY_DOUBLE, matrix_);
+  pArray = PyArray_SimpleNewFromData(numberOfDimensions, dimensions, NPY_DOUBLE,
+                                     const_cast<double *>(inputMatrix.data()));
 #ifndef TTK_ENABLE_KAMIKAZE
   if(!pArray) {
     this->printErr("Python: failed to convert the array.");
@@ -171,7 +218,7 @@ int DimensionReduction::execute() const {
 #endif
   gc.push_back(pNumberOfNeighbors);
 
-  pMethod = PyLong_FromLong(method_);
+  pMethod = PyLong_FromLong(static_cast<long>(this->Method));
 #ifndef TTK_ENABLE_KAMIKAZE
   if(!pMethod) {
     this->printErr("Python: cannot convert pMethod.");
@@ -180,7 +227,7 @@ int DimensionReduction::execute() const {
 #endif
   gc.push_back(pMethod);
 
-  if(threadNumber_ > 1 && method_ == 2) { // MDS
+  if(threadNumber_ > 1 && this->Method == METHOD::MDS) { // MDS
     this->printWrn(
       "MDS is known to be instable when used with multiple threads");
   }
@@ -192,7 +239,7 @@ int DimensionReduction::execute() const {
   }
 #endif
 
-  pIsDeterministic = PyLong_FromLong(randomState_);
+  pIsDeterministic = PyLong_FromLong(static_cast<long>(this->IsDeterministic));
 #ifndef TTK_ENABLE_KAMIKAZE
   if(!pIsDeterministic) {
     this->printErr("Python: cannot convert pIsDeterministic.");
@@ -277,6 +324,7 @@ int DimensionReduction::execute() const {
   PyList_Append(pISOParams, PyUnicode_FromString(iso_PathMethod.data()));
   PyList_Append(
     pISOParams, PyUnicode_FromString(iso_NeighborsAlgorithm.data()));
+  PyList_Append(pISOParams, PyUnicode_FromString(iso_Metric.data()));
 
   pPCAParams = PyList_New(0);
   PyList_Append(pPCAParams, PyBool_FromLong(pca_Copy));
@@ -330,20 +378,21 @@ int DimensionReduction::execute() const {
   }
 #endif
 
-  if(PyLong_AsLong(pNRows) == numberOfRows_
+  if(PyLong_AsLong(pNRows) == nRows
      and PyLong_AsLong(pNColumns) == numberOfComponents) {
     npEmbedding = reinterpret_cast<PyArrayObject *>(pEmbedding);
 
-    embedding_->resize(numberOfComponents);
+    outputEmbedding.resize(numberOfComponents);
     for(int i = 0; i < numberOfComponents; ++i) {
+      outputEmbedding[i].resize(nRows);
       if(PyArray_TYPE(npEmbedding) == NPY_FLOAT) {
         float *c_out = reinterpret_cast<float *>(PyArray_DATA(npEmbedding));
-        for(int j = 0; j < numberOfRows_; ++j)
-          (*embedding_)[i].push_back(c_out[i * numberOfRows_ + j]);
+        for(int j = 0; j < nRows; ++j)
+          outputEmbedding[i][j] = c_out[i * nRows + j];
       } else if(PyArray_TYPE(npEmbedding) == NPY_DOUBLE) {
         double *c_out = reinterpret_cast<double *>(PyArray_DATA(npEmbedding));
-        for(int j = 0; j < numberOfRows_; ++j)
-          (*embedding_)[i].push_back(c_out[i * numberOfRows_ + j]);
+        for(int j = 0; j < nRows; ++j)
+          outputEmbedding[i][j] = c_out[i * nRows + j];
       }
     }
   }
@@ -352,8 +401,8 @@ int DimensionReduction::execute() const {
   for(auto i : gc)
     Py_DECREF(i);
 
-  this->printMsg("Computed " + methodToString[this->method_], 1.0,
-                 t.getElapsedTime(), this->threadNumber_);
+  this->printMsg("Computed " + methodToString[static_cast<int>(this->Method)],
+                 1.0, t.getElapsedTime(), this->threadNumber_);
 
   return 0;
 
@@ -363,7 +412,7 @@ collect_garbage:
 #endif
   for(auto i : gc)
     Py_DECREF(i);
-  return -1;
+  return -6;
 
 #endif
 

@@ -30,8 +30,7 @@ namespace ttk {
       this->setDebugMsgPrefix("ContourAroundPoint");
     }
 
-    ~ContourAroundPoint() {
-    }
+    ~ContourAroundPoint() override = default;
 
     /**
      * Setup a (valid) triangulation object for this TTK base object.
@@ -51,7 +50,7 @@ namespace ttk {
      * \param triangulation Pointer to a valid triangulation.
      * \param scalars Scalar for each vertex.
      * \param sizeFilter 0 --> all pass, 10000 none pass.
-     * \param radius If all vertices lie on a shpere and the output is supposed
+     * \param radius If all vertices lie on a sphere and the output is supposed
      *        to do so as well, pass the radius of the sphere here or -1 to have
      *        it computed. The default 0 signals that the data is not spherical.
      * \return 0 upon success, negative values otherwise.
@@ -69,6 +68,7 @@ namespace ttk {
      * @param scalars Scalar value for each point.
      * @param isovals Isovalue corresponding to each point.
      * @param flags isMax-flag for each point.
+     * @param np Number of points.
      * @return 0 upon success, negative values otherwise.
      */
     int setInputPoints(float *coords,
@@ -84,38 +84,6 @@ namespace ttk {
      */
     template <class scalarT>
     int execute() const;
-
-    /**
-     * Get the output field data (e.g. for the wrapped algorithm).
-     * To be called after a successful `execute`.
-     * The ownership of the pointers moves to the caller.
-     * @param cinfos Sequence of cell infos like `n v0 ... vn-1`.
-     * @param nc Number of cells.
-     * @param coords 3D Vertex coordinates as interleaved array.
-     * @param flags isMax-flag for each vertex.
-     * @param scalars Scalar value for each vertex.
-     * @param nv Number of vertices.
-     */
-    void getOutputContours(SimplexId *&cinfos,
-                           SimplexId &nc,
-                           float *&coords,
-                           float *&scalars,
-                           int *&flags,
-                           SimplexId &nv) const;
-
-    /**
-     * Get the output point data (e.g. for the wrapped algorithm).
-     * To be called after a successful `execute`.
-     * The ownership of the pointers moves to the caller.
-     * @param coords 3D point coordinates as interleaved array.
-     * @param scalars Scalar value for each point.
-     * @param flags isMax-flag for each point.
-     * @param nv Number of vertices.
-     */
-    void getOutputCentroids(float *&coords,
-                            float *&scalars,
-                            int *&flags,
-                            SimplexId &nv) const;
 
   protected:
     /// Given one of the input points, find the nearest vertex in the input
@@ -135,7 +103,7 @@ namespace ttk {
                         int flag,
                         float scalar) const;
 
-    /// Exctract the contour from the input edges that intersect it.
+    /// Extract the contour from the input edges that intersect it.
     /// `inpEdges` may be empty.
     template <typename scalarT, class triangulationType = AbstractTriangulation>
     void extendOutFld(const std::set<SimplexId> &inpEdges,
@@ -154,7 +122,7 @@ namespace ttk {
     template <class triangulationType = AbstractTriangulation>
     double compRadius() {
       if(_inpFldTriang) {
-        float x, y, z;
+        float x = 0, y = 0, z = 0;
         reinterpret_cast<triangulationType *>(_inpFldTriang)
           ->getVertexPoint(0, x, y, z);
         _radius = std::sqrt(x * x + y * y + z * z);
@@ -188,7 +156,7 @@ namespace ttk {
 
     /* Output data (contours and centroids) */
 
-    mutable std::vector<SimplexId> _outContoursCinfos;
+    mutable std::vector<LongSimplexId> _outContoursCinfos;
     mutable SimplexId _outContoursNc = 0;
     mutable std::vector<float> _outContoursCoords;
     mutable std::vector<float> _outContoursScalars;
@@ -197,6 +165,13 @@ namespace ttk {
     mutable std::vector<float> _outCentroidsCoords;
     mutable std::vector<float> _outCentroidsScalars;
     mutable std::vector<int> _outCentroidsFlags;
+
+    /// `PointIterable` and `WeightIterable` must provide random access.
+    /// `PointIterable` must contain sth. like a tuple, pair or array.
+    template <class PointIterable, class WeightIterable>
+    static std::
+      array<double, std::tuple_size<typename PointIterable::value_type>::value>
+      average(const PointIterable &pts, const WeightIterable &ws);
   };
 } // namespace ttk
 
@@ -276,9 +251,9 @@ int ttk::ContourAroundPoint::execute() const {
 
   // The following open-mp processing is only relevant for
   // embarrassingly parallel algorithms.
-  //#ifdef TTK_ENABLE_OPENMP
-  //#pragma omp parallel for num_threads(threadNumber_)
-  //#endif
+  // #ifdef TTK_ENABLE_OPENMP
+  // #pragma omp parallel for num_threads(threadNumber_)
+  // #endif
   for(size_t p = 0; p < _inpPtsNum; ++p) {
     handleOneInpPt<scalarT>(
       findInpFldVert(p), _inpPtsIsovals[p], _inpPtsFlags[p], _inpPtsScalars[p]);
@@ -482,64 +457,176 @@ void ttk::ContourAroundPoint::extendOutPts(
   auto triang = reinterpret_cast<Triang *>(_inpFldTriang);
   auto inpScalars = reinterpret_cast<const scalarT *>(_inpFldScalars);
 
+  const double radius = _radius;
+  const bool spherical = radius > 0.;
+
   // We weight the vertices based on the difference to the extreme value.
   // Vertices that are close to the extreme value get much weight,
   // vertices that are close to the isovalue get little weight.
-  const double dMax = std::abs(isoval - extremeVal);
-#ifndef NDEBUG
-  const double dMaxRelaxed = dMax * 1.001;
-#endif
+  const double scalarDiffMax = std::abs(isoval - extremeVal);
 
-  // For now, we use a "full cosine" kernel.
-  const double kernelInputScaler = M_PI / dMax;
-  // d=0 ... cos(0)=1 ... w=1, d=dMax ... cos(pi)=-1 ... w = 0
-  auto k_func = [kernelInputScaler](double d) {
+  // For now, we use a "full cosine" kernel
+  const double kernelInputScaler = M_PI / scalarDiffMax;
+  // d=0 ... cos(0)=1 ... w=1, d=scalarDiffMax ... cos(pi)=-1 ... w = 0
+  auto scalar_w = [kernelInputScaler](double d) {
     return (std::cos(d * kernelInputScaler) + 1.) / 2.;
   };
 
-  // do the computation in double precision
-  double wSum = 0.;
-  double outX = 0.;
-  double outY = 0.;
-  double outZ = 0.;
-  double outSca = 0.;
+  // Additionally, each vertex is weighted considering the size of the domain it
+  // "represents" (inversely proportional to the sampling density).
+  // NOTE Currently we assume that whenever we have a spherical domain,
+  // it is given on a regular lon-lat grid.
+  const bool regularLonLat = spherical;
 
-  for(const auto v : vertices) {
+  // We collect the 4D samples and weights to compute the weighted average
+  // in a separate function
+  const auto numVerts = vertices.size();
+  auto pts4d = std::vector<std::array<float, 4>>(numVerts);
+  auto ws = std::vector<double>(numVerts);
+  for(std::size_t i = 0; i < numVerts; ++i) {
+
+    const auto v = vertices[i];
     const scalarT vSca = inpScalars[v];
     // Because we only use symmetric kernels for the weighting, the sign of
     // the difference does not matter.
-    const double d = vSca - extremeVal;
-#ifndef NDEBUG
-    if(std::abs(d) > dMaxRelaxed)
-      printWrn("d: " + std::to_string(d) + "  dMax: " + std::to_string(dMax));
-#endif
-    const double w = k_func(d);
-    wSum += w;
+    const double scalarDiff = vSca - extremeVal;
+    const double scalarW = scalar_w(scalarDiff);
 
     float x, y, z;
     triang->getVertexPoint(v, x, y, z);
-    outX += x * w;
-    outY += y * w;
-    outZ += z * w;
-    outSca += vSca * w;
-  }
-  assert(wSum != 0.);
-  outX /= wSum;
-  outY /= wSum;
-  outZ /= wSum;
-  outSca /= wSum;
+    pts4d[i] = {x, y, z, static_cast<float>(vSca)};
 
-  if(_radius > 0.) {
-    const double radiusCur = std::sqrt(outX * outX + outY * outY + outZ * outZ);
-    const double radiusScaler = _radius / radiusCur;
-    outX *= radiusScaler;
-    outY *= radiusScaler;
-    outZ *= radiusScaler;
+    if(!regularLonLat) {
+      if(_inpDimMax > 2) {
+        // If someone has a lot of time, they can implement the case for a
+        // tetrahedralization.
+        printWrn("Vertex weighting does not consider vertex density of this "
+                 "volumetric data");
+        ws[i] = scalarW;
+      } else {
+        // This is just *some* code to fill this gap until it is replaced by sth
+        // better; essentially this module was written for regular spherical
+        // grids.
+        // printMsg("Irregular triangulation");
+
+        // Compute the distance between points a and b.
+        static const auto compDist
+          = [](float ax, float ay, float az, float bx, float by, float bz) {
+              const auto dx = bx - ax;
+              const auto dy = by - ay;
+              const auto dz = bz - az;
+              return std::sqrt(dx * dx + dy * dy + dz * dz);
+            };
+
+        // We use Heron's formula for the area of a triangle, only using the
+        // side lengths a, b, c.
+        static const auto compArea = [](double a, double b, double c) {
+          const double s = (a + b + c) / 2.; // half the perimeter
+          // return std::sqrt(s*(s-a)*(s-b)*(s-c));
+          return std::sqrt(
+            3 * s * s - s * a - s * b
+            - s * c); // numerically more stable (with tested datasets)
+        };
+
+        // We assume a closed triangulation (i.e. no holes) and the vertex
+        // neighbors being ordered in a fan-like fashion.
+        double area = 0.;
+        float x2, y2, z2, x3, y3, z3;
+        SimplexId u;
+        triang->getVertexNeighbor(v, 0, u);
+        triang->getVertexPoint(u, x2, y2, z2);
+        double a = compDist(x, y, z, x2, y2, z2);
+
+        // Backup the first edge for the last triangle.
+        const float x2Bak = x2, y2Bak = y2, z2Bak = z2;
+        const double aBak = a;
+
+        const SimplexId n = triang->getVertexNeighborNumber(v);
+        for(SimplexId j = 1; j < n; ++j) {
+          triang->getVertexNeighbor(v, j, u);
+          triang->getVertexPoint(u, x3, y3, z3);
+          const double b = compDist(x, y, z, x3, y3, z3);
+          const double c = compDist(x2, y2, z2, x3, y3, z3);
+          area += compArea(a, b, c);
+          x2 = x3;
+          y2 = y3;
+          z2 = z3;
+          a = b;
+        }
+
+        const double b = aBak;
+        const double c = compDist(x2, y2, z2, x2Bak, y2Bak, z2Bak);
+        area += compArea(a, b, c);
+        //  std::cout<<"area: "<<area<<std::endl;
+        ws[i] = scalarW * area;
+      }
+    } else {
+      // spatial weight 1 at equator, 0 at a pole
+      const double latInRad = std::asin(z / radius);
+      // std::asin is in [-pi/2,+pi/2] => equator at 0 => fits
+      const double spatialW = std::cos(latInRad);
+      ws[i] = scalarW * spatialW;
+      // Why product and not mean of the weights?
+      // -> The resulting weight should be 0 if the vertex is either outside
+      // of the sub/super-level set (scalar weight 0) or its cell size is 0
+      // (spatial weight 0)
+    }
   }
 
-  _outCentroidsCoords.push_back(static_cast<float>(outX));
-  _outCentroidsCoords.push_back(static_cast<float>(outY));
-  _outCentroidsCoords.push_back(static_cast<float>(outZ));
-  _outCentroidsScalars.push_back(static_cast<float>(outSca));
+  const auto res = average(pts4d, ws);
+  auto x = res[0];
+  auto y = res[1];
+  auto z = res[2];
+
+  if(spherical) {
+    const auto radiusCur = std::sqrt(x * x + y * y + z * z);
+    const auto radiusScaler = radius / radiusCur;
+    x *= radiusScaler;
+    y *= radiusScaler;
+    z *= radiusScaler;
+  }
+
+  // std::cout<<x<<","<<y<<","<<z<<std::endl;
+  _outCentroidsCoords.push_back(static_cast<float>(x));
+  _outCentroidsCoords.push_back(static_cast<float>(y));
+  _outCentroidsCoords.push_back(static_cast<float>(z));
+  _outCentroidsScalars.push_back(static_cast<float>(res[3]));
   _outCentroidsFlags.push_back(flag);
+}
+
+//----------------------------------------------------------------------------//
+template <class PointIterable, class WeightIterable>
+std::array<double, std::tuple_size<typename PointIterable::value_type>::value>
+  ttk::ContourAroundPoint::average(const PointIterable &pts,
+                                   const WeightIterable &ws) {
+
+  constexpr auto numComponents
+    = std::tuple_size<typename PointIterable::value_type>::value;
+  std::array<double, numComponents> res{};
+  // as of C++14 there is no (simple) compile time "constexpr for loop"
+#ifndef NDEBUG
+  for(std::size_t j = 0; j < numComponents; ++j)
+    //     assert(std::get<j>(res) == 0.);
+    assert(res[j] == 0.);
+#endif
+  double wSum = 0.;
+
+  const auto numPts = pts.size();
+  assert(ws.size() == numPts);
+
+  for(std::size_t i = 0; i < numPts; ++i) {
+    auto &pt = pts[i];
+    const auto w = ws[i];
+    wSum += w;
+    for(std::size_t j = 0; j < numComponents; ++j)
+      //       std::get<j>(res) += std::get<j>(pt) * w;
+      res[j] += pt[j] * w;
+  }
+
+  assert(wSum != 0.);
+  for(std::size_t j = 0; j < numComponents; ++j)
+    //     std::get<j>(res) /= wSum;
+    res[j] /= wSum;
+
+  return res;
 }

@@ -16,6 +16,11 @@
 ///
 /// \sa ttk::ttkArrayPreconditioning
 /// \sa ttkAlgorithm
+///
+/// \b Online \b examples:\n
+///   - <a
+///   href="https://topology-tool-kit.github.io/examples/mpiExample/">
+///   MPI example</a> \n
 
 #pragma once
 
@@ -28,8 +33,14 @@
 #include <vtkDataArraySelection.h>
 #include <vtkNew.h>
 
+// TTK Base Includes
+#include <ArrayPreconditioning.h>
+
 class TTKARRAYPRECONDITIONING_EXPORT ttkArrayPreconditioning
-  : public ttkAlgorithm {
+  : public ttkAlgorithm // we inherit from the generic ttkAlgorithm class
+  ,
+    protected ttk::ArrayPreconditioning // and we inherit from the base class
+{
 
 public:
   static ttkArrayPreconditioning *New();
@@ -40,6 +51,12 @@ public:
 
   vtkSetMacro(RegexpString, const std::string &);
   vtkGetMacro(RegexpString, std::string);
+
+  vtkSetMacro(GlobalOrder, bool);
+  vtkGetMacro(GlobalOrder, bool);
+
+  vtkSetMacro(ChunkSize, int);
+  vtkGetMacro(ChunkSize, int);
 
   // copy the vtkPassSelectedArray ("PassArrays" filter) API
   vtkDataArraySelection *GetPointDataArraySelection() {

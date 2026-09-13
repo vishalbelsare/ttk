@@ -1,6 +1,7 @@
 /// \ingroup vtk
 /// \class ttkMergeTreeClustering
 /// \author Mathieu Pont (mathieu.pont@lip6.fr)
+/// \author Florian Wetzels (wetzels@cs.uni-kl.de)
 /// \date 2021.
 ///
 /// \brief TTK VTK-filter that wraps the ttk::MergeTreeClustering module.
@@ -9,7 +10,7 @@
 /// distance between two merge trees.
 ///
 /// \param Input vtkMultiBlockDataSet Input trees
-/// \param Input (optionnal) vtkMultiBlockDataSet Input trees
+/// \param Input (optional) vtkMultiBlockDataSet Input trees
 /// \param Output vtkMultiBlockDataSet Input trees (processed)
 /// \param Output vtkMultiBlockDataSet Centroids trees
 /// \param Output vtkMultiBlockDataSet Matchings
@@ -25,14 +26,35 @@
 /// Mathieu Pont, Jules Vidal, Julie Delon, Julien Tierny.\n
 /// Proc. of IEEE VIS 2021.\n
 /// IEEE Transactions on Visualization and Computer Graphics, 2021
+
+/// \b Related \b publication \n
+/// "Merge Tree Geodesics and Barycenters with Path Mappings" \n
+/// F. Wetzels, M. Pont, J. Tierny and C. Garth.\n
+/// Proc. of IEEE VIS 2023.\n
+/// IEEE Transactions on Visualization and Computer Graphics, 2024
 ///
 /// \sa ttk::MergeTreeClustering
 /// \sa ttkAlgorithm
 ///
 /// \b Online \b examples: \n
 ///   - <a
+///   href="https://topology-tool-kit.github.io/examples/mergeTreeBarycenter_branchMapping/">Merge
+///   Tree Branch Mapping example</a> \n
+///   - <a
+///   href="https://topology-tool-kit.github.io/examples/mergeTreeBarycenter_pathMapping/">Merge
+///   Tree Path Mapping example</a> \n
+///   - <a
 ///   href="https://topology-tool-kit.github.io/examples/mergeTreeClustering/">Merge
 ///   Tree Clustering example</a> \n
+///   - <a
+///   href="https://topology-tool-kit.github.io/examples/mergeTreeFeatureTracking/">Merge
+///   Tree Feature Tracking example</a> \n
+///   - <a
+///   href="https://topology-tool-kit.github.io/examples/mergeTreeWAE/">Merge
+///   tree Wasserstein Auto-Encoder example</a> \n
+///   - <a
+///   href="https://topology-tool-kit.github.io/examples/mergeTreePGA/">Merge
+///   Tree Principal Geodesic Analysis example</a> \n
 
 #pragma once
 
@@ -42,6 +64,7 @@
 // VTK Includes
 #include <ttkAlgorithm.h>
 #include <vtkMultiBlockDataSet.h>
+#include <vtkSmartPointer.h>
 #include <vtkUnstructuredGrid.h>
 
 // TTK Base Includes
@@ -69,6 +92,7 @@ private:
   double PersistenceThreshold = 0.;
   bool DeleteMultiPersPairs = false;
   bool UseMinMaxPair = true;
+  bool IsPersistenceDiagram = false;
 
   // Execution Options
   int Backend = 0;
@@ -77,20 +101,39 @@ private:
   bool BranchDecomposition = true;
   bool NormalizedWasserstein = true;
   bool KeepSubtree = false;
+  bool oldBD = BranchDecomposition;
+  bool oldNW = NormalizedWasserstein;
+  bool oldKS = KeepSubtree;
   double JoinSplitMixtureCoefficient = 0.5;
+  int DiagramPairTypes = 0;
   bool ComputeBarycenter = false;
+  bool oldComputeBarycenter = ComputeBarycenter;
   unsigned int NumberOfBarycenters = 1;
+  double BarycenterSizeLimitPercent = 0.0;
   bool Deterministic = false;
+  int pathMetric = 0;
+  int branchMetric = 0;
+  int baseModule = 0;
+  bool useMedianBarycenter = false;
+  bool useFixedInit = false;
+  int fixedInitNumber = 0;
+  // bool useEarlyOut = true;
+  int iterationLimit = 100;
+  double NonMatchingWeight = 1.0;
 
   // Output Options
   bool OutputTrees = true;
   bool OutputSegmentation = false;
   bool PlanarLayout = false;
   bool BranchDecompositionPlanarLayout = false;
+  bool PathPlanarLayout = false;
   double BranchSpacing = 1.;
   bool RescaleTreesIndividually = false;
   double DimensionSpacing = 1.;
   int DimensionToShift = 0;
+  double XShift = 1.0;
+  double YShift = 0.0;
+  double ZShift = 0.0;
   double ImportantPairs = 50.;
   int MaximumImportantPairs = 0;
   int MinimumImportantPairs = 0;
@@ -98,15 +141,8 @@ private:
   double NonImportantPairsSpacing = 1.;
   double NonImportantPairsProximity = 0.05;
   bool BarycenterPositionAlpha = false;
-
-  // Old options
-  bool ProgressiveComputation = false;
-  double ProgressiveSpeedDivisor = 4.0;
-  double NormalizedWassersteinReg = 0.;
-  bool RescaledWasserstein = false;
-  bool ProgressiveBarycenter = false;
-  double Tol = 0.0;
-  bool Parallelize = true;
+  std::string ExcludeImportantPairsLower = "";
+  std::string ExcludeImportantPairsHigher = "";
 
   // ----------------------
   // Data for visualization
@@ -124,9 +160,13 @@ private:
   std::vector<std::vector<
     std::vector<std::tuple<ttk::ftm::idNode, ttk::ftm::idNode, double>>>>
     outputMatchingBarycenter, outputMatchingBarycenter2;
+  std::vector<std::vector<
+    std::vector<std::pair<std::pair<ttk::ftm::idNode, ttk::ftm::idNode>,
+                          std::pair<ttk::ftm::idNode, ttk::ftm::idNode>>>>>
+    outputMatchings_path;
 
   // Barycenter
-  std::vector<ttk::ftm::MergeTree<double>> barycentersS;
+  std::vector<ttk::ftm::MergeTree<double>> barycentersS, barycentersS2;
   std::vector<int> clusteringAssignment;
 
   // Node correspondence
@@ -153,13 +193,20 @@ private:
       std::vector<
         std::vector<std::tuple<ttk::ftm::idNode, ttk::ftm::idNode, double>>>(
         numInputs));
-
     outputMatchingBarycenter2 = std::vector<std::vector<
       std::vector<std::tuple<ttk::ftm::idNode, ttk::ftm::idNode, double>>>>(
       NumberOfBarycenters,
       std::vector<
         std::vector<std::tuple<ttk::ftm::idNode, ttk::ftm::idNode, double>>>(
         numInputs2));
+    outputMatchings_path = std::vector<std::vector<
+      std::vector<std::pair<std::pair<ttk::ftm::idNode, ttk::ftm::idNode>,
+                            std::pair<ttk::ftm::idNode, ttk::ftm::idNode>>>>>(
+      NumberOfBarycenters,
+      std::vector<
+        std::vector<std::pair<std::pair<ttk::ftm::idNode, ttk::ftm::idNode>,
+                              std::pair<ttk::ftm::idNode, ttk::ftm::idNode>>>>(
+        numInputs));
 
     // Barycenter
     barycentersS
@@ -234,8 +281,24 @@ public:
   vtkGetMacro(DeleteMultiPersPairs, bool);
 
   // Execution Options
-  void SetBackend(int backend) {
-    Backend = backend;
+  void SetBackend(int newBackend) {
+    if(Backend == 2) { // Custom
+      oldBD = BranchDecomposition;
+      oldNW = NormalizedWasserstein;
+      oldKS = KeepSubtree;
+    }
+    if(newBackend == 2) { // Custom
+      BranchDecomposition = oldBD;
+      NormalizedWasserstein = oldNW;
+      KeepSubtree = oldKS;
+    }
+    if(Backend == 1 or Backend == 3) //  edit distance or branch mapping
+      ComputeBarycenter = oldComputeBarycenter;
+    if(newBackend == 1 or newBackend == 3) {
+      oldComputeBarycenter = ComputeBarycenter;
+      ComputeBarycenter = false;
+    }
+    Backend = newBackend;
     Modified();
     resetDataVisualization();
   }
@@ -243,6 +306,8 @@ public:
 
   void SetAlpha(double alpha) {
     Alpha = 1 - alpha;
+    Alpha = std::min(1 - 1e-6, Alpha);
+    Alpha = std::max(1e-6, Alpha);
     Modified();
     resetDataVisualization();
   }
@@ -290,6 +355,13 @@ public:
   }
   vtkGetMacro(JoinSplitMixtureCoefficient, double);
 
+  void SetDiagramPairTypes(int diagramPairTypes) {
+    DiagramPairTypes = diagramPairTypes;
+    Modified();
+    resetDataVisualization();
+  }
+  vtkGetMacro(DiagramPairTypes, int);
+
   void SetComputeBarycenter(bool computeBarycenter) {
     ComputeBarycenter = computeBarycenter;
     Modified();
@@ -303,6 +375,62 @@ public:
     resetDataVisualization();
   }
   vtkGetMacro(NumberOfBarycenters, unsigned int);
+
+  void SetBarycenterSizeLimitPercent(double percent) {
+    BarycenterSizeLimitPercent = percent;
+    Modified();
+    resetDataVisualization();
+  }
+  vtkGetMacro(BarycenterSizeLimitPercent, double);
+
+  void SetBranchMetric(int m) {
+    branchMetric = m;
+    Modified();
+    resetDataVisualization();
+  }
+
+  void SetPathMetric(int m) {
+    pathMetric = m;
+    Modified();
+    resetDataVisualization();
+  }
+
+  void SetUseMedianBarycenter(bool useMedian) {
+    useMedianBarycenter = useMedian;
+    Modified();
+    resetDataVisualization();
+  }
+
+  void SetUseFixedInit(bool ufi) {
+    useFixedInit = ufi;
+    Modified();
+    resetDataVisualization();
+  }
+
+  void SetFixedInitNumber(int fi) {
+    fixedInitNumber = fi;
+    Modified();
+    resetDataVisualization();
+  }
+
+  // void SetUseEarlyOut(bool eo) {
+  //   useEarlyOut = eo;
+  //   Modified();
+  //   resetDataVisualization();
+  // }
+
+  void SetIterationLimit(int l) {
+    iterationLimit = l;
+    Modified();
+    resetDataVisualization();
+  }
+
+  void SetNonMatchingWeight(double weight) {
+    NonMatchingWeight = weight;
+    Modified();
+    resetDataVisualization();
+  }
+  vtkGetMacro(NonMatchingWeight, double);
 
   // Output Options
   vtkSetMacro(BarycenterPositionAlpha, bool);
@@ -320,6 +448,9 @@ public:
   vtkSetMacro(BranchDecompositionPlanarLayout, bool);
   vtkGetMacro(BranchDecompositionPlanarLayout, bool);
 
+  vtkSetMacro(PathPlanarLayout, bool);
+  vtkGetMacro(PathPlanarLayout, bool);
+
   vtkSetMacro(BranchSpacing, double);
   vtkGetMacro(BranchSpacing, double);
 
@@ -331,6 +462,15 @@ public:
 
   vtkSetMacro(DimensionToShift, int);
   vtkGetMacro(DimensionToShift, int);
+
+  vtkSetMacro(XShift, double);
+  vtkGetMacro(XShift, double);
+
+  vtkSetMacro(YShift, double);
+  vtkGetMacro(YShift, double);
+
+  vtkSetMacro(ZShift, double);
+  vtkGetMacro(ZShift, double);
 
   vtkSetMacro(ImportantPairs, double);
   vtkGetMacro(ImportantPairs, double);
@@ -350,27 +490,11 @@ public:
   vtkSetMacro(NonImportantPairsProximity, double);
   vtkGetMacro(NonImportantPairsProximity, double);
 
-  // Old options
-  vtkSetMacro(ProgressiveComputation, bool);
-  vtkGetMacro(ProgressiveComputation, bool);
+  vtkSetMacro(ExcludeImportantPairsLower, const std::string &);
+  vtkGetMacro(ExcludeImportantPairsLower, std::string);
 
-  vtkSetMacro(ProgressiveSpeedDivisor, double);
-  vtkGetMacro(ProgressiveSpeedDivisor, double);
-
-  vtkSetMacro(Tol, double);
-  vtkGetMacro(Tol, double);
-
-  vtkSetMacro(ProgressiveBarycenter, bool);
-  vtkGetMacro(ProgressiveBarycenter, bool);
-
-  vtkSetMacro(Parallelize, bool);
-  vtkGetMacro(Parallelize, bool);
-
-  vtkSetMacro(NormalizedWassersteinReg, double);
-  vtkGetMacro(NormalizedWassersteinReg, double);
-
-  vtkSetMacro(RescaledWasserstein, bool);
-  vtkGetMacro(RescaledWasserstein, bool);
+  vtkSetMacro(ExcludeImportantPairsHigher, const std::string &);
+  vtkGetMacro(ExcludeImportantPairsHigher, std::string);
 
   /**
    * This static method and the macro below are VTK conventions on how to
@@ -409,16 +533,18 @@ protected:
 
   template <class dataType>
   int run(vtkInformationVector *outputVector,
-          std::vector<vtkMultiBlockDataSet *> &inputTrees,
-          std::vector<vtkMultiBlockDataSet *> &inputTrees2);
+          std::vector<vtkSmartPointer<vtkMultiBlockDataSet>> &inputTrees,
+          std::vector<vtkSmartPointer<vtkMultiBlockDataSet>> &inputTrees2);
 
   template <class dataType>
-  int runCompute(vtkInformationVector *outputVector,
-                 std::vector<vtkMultiBlockDataSet *> &inputTrees,
-                 std::vector<vtkMultiBlockDataSet *> &inputTrees2);
+  int runCompute(
+    vtkInformationVector *outputVector,
+    std::vector<vtkSmartPointer<vtkMultiBlockDataSet>> &inputTrees,
+    std::vector<vtkSmartPointer<vtkMultiBlockDataSet>> &inputTrees2);
 
   template <class dataType>
-  int runOutput(vtkInformationVector *outputVector,
-                std::vector<vtkMultiBlockDataSet *> &inputTrees,
-                std::vector<vtkMultiBlockDataSet *> &inputTrees2);
+  int runOutput(
+    vtkInformationVector *outputVector,
+    std::vector<vtkSmartPointer<vtkMultiBlockDataSet>> &inputTrees,
+    std::vector<vtkSmartPointer<vtkMultiBlockDataSet>> &inputTrees2);
 };

@@ -22,16 +22,20 @@
 #include <vtkTransform.h>
 #include <vtkUnsignedCharArray.h>
 #include <vtkVRMLExporter.h>
+#include <vtkVersionMacros.h>
 
 // base code includes
 #include <Debug.h>
 
 #include <ttkWRLExporter.h>
 
+/// @cond
+
 TTKWRLEXPORTER_EXPORT vtkPolyData *ttkWRLExporterPolyData_ = nullptr;
 
 // Over-ride the appropriate functions of the vtkVRMLExporter class.
-void vtkVRMLExporter::WriteAnActor(vtkActor *anActor, FILE *fp) {
+TTKWRLEXPORTER_EXPORT void vtkVRMLExporter::WriteAnActor(vtkActor *anActor,
+                                                         FILE *fp) {
 
   ttk::Debug debugInfo;
   debugInfo.setDebugMsgPrefix("WRLExporter");
@@ -142,7 +146,12 @@ void vtkVRMLExporter::WriteAnActor(vtkActor *anActor, FILE *fp) {
     fprintf(fp, "            solid FALSE\n");
 
     if(!pointDataWritten) {
+
+#if VTK_VERSION_NUMBER >= VTK_VERSION_CHECK(9, 4, 20250513)
+      this->WritePointData(points, normals, tcoords, colors, false, fp);
+#else
       this->WritePointData(points, normals, tcoords, colors, fp);
+#endif
       pointDataWritten = 1;
     } else {
       fprintf(fp, "            coord  USE VTKcoordinates\n");
@@ -186,7 +195,13 @@ void vtkVRMLExporter::WriteAnActor(vtkActor *anActor, FILE *fp) {
     fprintf(fp, "          geometry IndexedFaceSet {\n");
 
     if(!pointDataWritten) {
+
+#if VTK_VERSION_NUMBER >= VTK_VERSION_CHECK(9, 4, 20250513)
+      this->WritePointData(points, normals, tcoords, colors, false, fp);
+#else
       this->WritePointData(points, normals, tcoords, colors, fp);
+#endif
+
       pointDataWritten = 1;
     } else {
       fprintf(fp, "            coord  USE VTKcoordinates\n");
@@ -235,7 +250,12 @@ void vtkVRMLExporter::WriteAnActor(vtkActor *anActor, FILE *fp) {
     fprintf(fp, "          geometry IndexedLineSet {\n");
 
     if(!pointDataWritten) {
+
+#if VTK_VERSION_NUMBER >= VTK_VERSION_CHECK(9, 4, 20250513)
+      this->WritePointData(points, nullptr, nullptr, colors, false, fp);
+#else
       this->WritePointData(points, nullptr, nullptr, colors, fp);
+#endif
     } else {
       fprintf(fp, "            coord  USE VTKcoordinates\n");
 
@@ -312,7 +332,7 @@ void vtkVRMLExporter::WriteAnActor(vtkActor *anActor, FILE *fp) {
   pm->Delete();
 }
 
-void vtkVRMLExporter::WriteData() {
+TTKWRLEXPORTER_EXPORT void vtkVRMLExporter::WriteData() {
 
   vtkRenderer *ren;
   vtkActorCollection *ac;
@@ -432,11 +452,15 @@ void vtkVRMLExporter::WriteData() {
   }
 }
 
-void vtkVRMLExporter::WritePointData(vtkPoints *points,
-                                     vtkDataArray *normals,
-                                     vtkDataArray *tcoords,
-                                     vtkUnsignedCharArray *colors,
-                                     FILE *fp) {
+TTKWRLEXPORTER_EXPORT void
+  vtkVRMLExporter::WritePointData(vtkPoints *points,
+                                  vtkDataArray *normals,
+                                  vtkDataArray *tcoords,
+                                  vtkUnsignedCharArray *colors,
+#if VTK_VERSION_NUMBER >= VTK_VERSION_CHECK(9, 4, 20250513)
+                                  bool vtkNotUsed(cellData),
+#endif
+                                  FILE *fp) {
 
   double *p;
   unsigned char *c;
@@ -510,3 +534,5 @@ void vtkVRMLExporter::WritePointData(vtkPoints *points,
     fprintf(fp, "          }\n");
   }
 }
+
+/// @endcond

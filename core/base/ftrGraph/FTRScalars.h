@@ -28,8 +28,7 @@ namespace ttk {
       std::vector<Vert<ScalarType>> vertices_{};
 
     public:
-      Scalars() {
-      }
+      Scalars() = default;
 
       // Heavy, prevent using it
       Scalars(const Scalars &o) = delete;
@@ -42,7 +41,7 @@ namespace ttk {
         return offsets_;
       }
 
-      idVertex getSize(void) const {
+      idVertex getSize() const {
         return size_;
       }
 
@@ -70,7 +69,7 @@ namespace ttk {
        * @pre For this function to behave correctly in the absence of
        * the VTK wrapper, ttk::preconditionOrderArray() needs to be
        * called to fill the @p sos buffer prior to any
-       * computation (the VTK wrapper already includes a mecanism to
+       * computation (the VTK wrapper already includes a mechanism to
        * automatically generate such a preconditioned buffer).
        * @see examples/c++/main.cpp for an example use.
        */
@@ -96,7 +95,7 @@ namespace ttk {
         }
       }
 
-      void removeNaN(void) {
+      void removeNaN() {
         // This section is aimed to prevent un-deterministic results if the
         // data-set have NaN values in it. In this loop, we replace every NaN by
         // a 0 value. Recall: Equals values are distinguished using Simulation

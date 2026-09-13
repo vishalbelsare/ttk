@@ -34,31 +34,15 @@ int ttkGaussianPointCloud::RequestData(
 
   if(points->GetDataType() == VTK_FLOAT) {
     this->generate<float>(
-      Dimension, NumberOfSamples,
+      Dimension, NumberOfSamples, RandomSeed,
       static_cast<float *>(ttkUtils::GetVoidPointer(points)));
   } else if(points->GetDataType() == VTK_DOUBLE) {
     this->generate<double>(
-      Dimension, NumberOfSamples,
+      Dimension, NumberOfSamples, RandomSeed,
       static_cast<double *>(ttkUtils::GetVoidPointer(points)));
   }
 
-  domain->SetPoints(points);
-
-  vtkNew<vtkIdTypeArray> offsets{}, connectivity{};
-  offsets->SetNumberOfComponents(1);
-  offsets->SetNumberOfTuples(NumberOfSamples + 1);
-  connectivity->SetNumberOfComponents(1);
-  connectivity->SetNumberOfTuples(NumberOfSamples);
-
-  for(int i = 0; i < NumberOfSamples; i++) {
-    offsets->SetTuple1(i, i);
-    connectivity->SetTuple1(i, i);
-  }
-  offsets->SetTuple1(NumberOfSamples, NumberOfSamples);
-
-  vtkNew<vtkCellArray> cells{};
-  cells->SetData(offsets, connectivity);
-  domain->SetVerts(cells);
+  ttkUtils::CellVertexFromPoints(domain, points);
 
   return 1;
 }

@@ -25,8 +25,8 @@ namespace ttk {
     private:
       // mesh vertex where this node is
       SimplexId vertexId_;
-      // For leaves, linkedNode is the saddle ending the persistance pair
-      // For saddle, linked is the leaf starting the persistance pair in which
+      // For leaves, linkedNode is the saddle ending the persistence pair
+      // For saddle, linked is the leaf starting the persistence pair in which
       // they are
       SimplexId linkedNode_;
       // link with superArc above and below
@@ -61,11 +61,11 @@ namespace ttk {
 
       // Linked node
 
-      inline SimplexId getOrigin(void) const {
+      inline SimplexId getOrigin() const {
         return linkedNode_;
       }
 
-      inline SimplexId getTerminaison(void) const {
+      inline SimplexId getTermination() const {
         return linkedNode_;
       }
 
@@ -73,7 +73,7 @@ namespace ttk {
         linkedNode_ = linked;
       }
 
-      inline void setTerminaison(SimplexId linked) {
+      inline void setTermination(SimplexId linked) {
         linkedNode_ = linked;
       }
 
@@ -124,14 +124,14 @@ namespace ttk {
         vect_upSuperArcList_.emplace_back(upSuperArcId);
       }
 
-      inline idSuperArc clearDownSuperArcs(void) {
-        idSuperArc s = vect_downSuperArcList_.size();
+      inline idSuperArc clearDownSuperArcs() {
+        idSuperArc const s = vect_downSuperArcList_.size();
         vect_downSuperArcList_.clear();
         return s;
       }
 
-      inline idSuperArc clearUpSuperArcs(void) {
-        idSuperArc s = vect_upSuperArcList_.size();
+      inline idSuperArc clearUpSuperArcs() {
+        idSuperArc const s = vect_upSuperArcList_.size();
         vect_upSuperArcList_.clear();
         return s;
       }
@@ -152,6 +152,22 @@ namespace ttk {
             return;
           }
         }
+      }
+
+      inline void removeDownSuperArcs(std::vector<idSuperArc> &idSa) {
+        if(idSa.empty())
+          return;
+        std::vector<bool> toDelete(
+          (*std::max_element(idSa.begin(), idSa.end())) + 1, false);
+        for(auto &id : idSa)
+          toDelete[id] = true;
+        vect_downSuperArcList_.erase(
+          std::remove_if(vect_downSuperArcList_.begin(),
+                         vect_downSuperArcList_.end(),
+                         [&toDelete](const idSuperArc &i) {
+                           return i < toDelete.size() and toDelete[i];
+                         }),
+          vect_downSuperArcList_.end());
       }
 
       // Find and remove the arc

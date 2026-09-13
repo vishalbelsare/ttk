@@ -8,6 +8,7 @@
 #include <vtkInformation.h>
 #include <vtkPointData.h>
 #include <vtkPolyData.h>
+#include <vtkVersionMacros.h>
 
 vtkStandardNewMacro(ttkQuadrangulationSubdivision);
 
@@ -55,7 +56,11 @@ int ttkQuadrangulationSubdivision::RequestData(
   this->preconditionTriangulation(triangulation);
 
   auto inputCells = quads->GetPolys();
+#if VTK_VERSION_NUMBER >= VTK_VERSION_CHECK(9, 6, 1)
+  if(inputCells == nullptr || inputCells->GetConnectivityArray() == nullptr) {
+#else
   if(inputCells == nullptr || inputCells->GetData() == nullptr) {
+#endif
     this->printErr("Invalid input quadrangle cells");
     return 0;
   }
@@ -110,7 +115,7 @@ int ttkQuadrangulationSubdivision::RequestData(
 
   vtkNew<vtkPoints> points{};
   for(size_t i = 0; i < outputPoints_.size(); ++i) {
-    points->InsertNextPoint(&outputPoints_[i].x);
+    points->InsertNextPoint(outputPoints_[i].data());
   }
 
   // update output: get quadrangle vertices
@@ -122,6 +127,18 @@ int ttkQuadrangulationSubdivision::RequestData(
   ttkUtils::SetVoidArray(
     valences, outputValences_.data(), outputValences_.size(), 1);
   output->GetPointData()->AddArray(valences);
+
+  vtkNew<vtkFloatArray> density{};
+  density->SetName("Density");
+  ttkUtils::SetVoidArray(
+    density, outputDensity_.data(), outputDensity_.size(), 1);
+  output->GetPointData()->AddArray(density);
+
+  vtkNew<vtkFloatArray> deformity{};
+  deformity->SetName("Deformity");
+  ttkUtils::SetVoidArray(
+    deformity, outputDifformity_.data(), outputDifformity_.size(), 1);
+  output->GetPointData()->AddArray(deformity);
 
   // add data array of points infos
   vtkNew<ttkSimplexIdTypeArray> infos{};
@@ -136,22 +153,11 @@ int ttkQuadrangulationSubdivision::RequestData(
     subd, outputSubdivision_.data(), outputSubdivision_.size(), 1);
   output->GetPointData()->AddArray(subd);
 
-  if(RelaxationIterations > 0) {
-
-    // add data array of number of triangles checked
-    vtkNew<ttkSimplexIdTypeArray> trChecked{};
-    trChecked->SetName("Triangles checked");
-    ttkUtils::SetVoidArray(
-      trChecked, trianglesChecked_.data(), trianglesChecked_.size(), 1);
-    output->GetPointData()->AddArray(trChecked);
-
-    // add data array of projection success
-    vtkNew<ttkSimplexIdTypeArray> projSucc{};
-    projSucc->SetName("Projection");
-    ttkUtils::SetVoidArray(
-      projSucc, projSucceeded_.data(), projSucceeded_.size(), 1);
-    output->GetPointData()->AddArray(projSucc);
-  }
+  vtkNew<ttkSimplexIdTypeArray> nearestVert{};
+  nearestVert->SetName(ttk::VertexScalarFieldName);
+  ttkUtils::SetVoidArray(nearestVert, nearestVertexIdentifier_.data(),
+                         nearestVertexIdentifier_.size(), 1);
+  output->GetPointData()->AddArray(nearestVert);
 
   if(QuadStatistics) {
     vtkNew<vtkFloatArray> quadArea{};

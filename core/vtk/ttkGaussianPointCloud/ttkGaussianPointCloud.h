@@ -6,7 +6,7 @@
 /// \brief TTK VTK-filter that generates a 1D, 2D or 3D point cloud by randomly
 /// casting samples from a Gaussian distribution.
 ///
-/// VTK wrapping code for the @GaussianPointCloud package.
+/// VTK wrapping code for the ttk::GaussianPointCloud package.
 ///
 /// \sa ttk::GaussianPointCloud
 
@@ -33,6 +33,9 @@ public:
   vtkSetMacro(NumberOfSamples, int);
   vtkGetMacro(NumberOfSamples, int);
 
+  vtkSetMacro(RandomSeed, int);
+  vtkGetMacro(RandomSeed, int);
+
 protected:
   ttkGaussianPointCloud();
 
@@ -44,4 +47,5 @@ protected:
 private:
   int Dimension{2};
   int NumberOfSamples{1000};
+  int RandomSeed{0};
 };

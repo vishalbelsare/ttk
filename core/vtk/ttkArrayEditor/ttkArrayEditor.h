@@ -13,6 +13,15 @@
 /// \b Online \b examples: \n
 ///   - <a href="https://topology-tool-kit.github.io/examples/cinemaIO/">Cinema
 ///   IO example</a> \n
+///   - <a
+///   href="https://topology-tool-kit.github.io/examples/contourTreeAlignment/">Contour
+///   Tree Alignment example</a> \n
+///   - <a
+///   href="https://topology-tool-kit.github.io/examples/mergeTreeWAE/">Merge
+///   tree Wasserstein Auto-Encoder example</a> \n
+///   - <a
+///   href="https://topology-tool-kit.github.io/examples/nestedTrackingFromOverlap/">Nested
+///   Tracking From Overlap example</a> \n
 
 #pragma once
 
@@ -91,7 +100,7 @@ public:
 
 protected:
   ttkArrayEditor();
-  ~ttkArrayEditor();
+  ~ttkArrayEditor() override;
 
   int FillInputPortInformation(int port, vtkInformation *info) override;
   int FillOutputPortInformation(int port, vtkInformation *info) override;

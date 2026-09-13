@@ -19,15 +19,9 @@
 #pragma once
 
 #include <map>
+#include <numeric>
 #include <queue>
 #include <vector>
-
-#if defined(__APPLE__) || defined(_WIN32) || defined(__clang__)
-#include <algorithm>
-#include <numeric>
-#else
-#include <parallel/algorithm>
-#endif
 
 #include <Geometry.h>
 #include <Triangulation.h>
@@ -46,11 +40,14 @@ namespace ttk {
 
     protected:
       // global
-      Params *const params_;
-      Scalars *const scalars_;
+      std::shared_ptr<Params> params_;
+      std::shared_ptr<Scalars> scalars_;
 
       // local
       TreeData treeData_;
+
+      // storage
+      std::list<ExtendedUnionFind> storageEUF_;
 
     public:
       // CONSTRUCT
@@ -58,12 +55,12 @@ namespace ttk {
       // {
 
       // Tree with global data and partition number
-      MergeTree(Params *const params,
-                Scalars *const scalars,
+      MergeTree(std::shared_ptr<Params> params,
+                std::shared_ptr<Scalars> scalars,
                 TreeType type,
                 idPartition part = nullPartition);
 
-      virtual ~MergeTree();
+      ~MergeTree() override;
 
       //}
       // --------------------
@@ -76,18 +73,18 @@ namespace ttk {
         scalars_->size = tri->getNumberOfVertices();
       }
 
-      /// \brief init the type of the current tree froms params
-      void initTreeType(void) {
+      /// \brief init the type of the current tree from params
+      void initTreeType() {
         treeData_.treeType = params_->treeType;
       }
 
       /// \brief if sortedVertices_ is null, define and fill it
       /// Also fill the mirror std::vector
       template <typename scalarType>
-      void sortInput(void);
+      void sortInput();
 
       /// \brief clear local data for new computation
-      void flush(void) {
+      void flush() {
         treeData_.superArcs.clear();
         treeData_.nodes.clear();
         treeData_.leaves.clear();
@@ -109,7 +106,7 @@ namespace ttk {
       // On this implementation, the warpper communicate with ContourForest
       // A child class of this one.
 
-      inline int setDebugLevel(const int &local_debugLevel) {
+      inline int setDebugLevel(const int &local_debugLevel) override {
         Debug::setDebugLevel(local_debugLevel);
         params_->debugLevel = local_debugLevel;
         return 0;
@@ -145,7 +142,7 @@ namespace ttk {
       // partition
       // .....................{
 
-      inline idPartition getPartition(void) const {
+      inline idPartition getPartition() const {
         return treeData_.partition;
       }
 
@@ -171,7 +168,7 @@ namespace ttk {
        * @pre For this function to behave correctly in the absence of
        * the VTK wrapper, ttk::preconditionOrderArray() needs to be
        * called to fill the @p offsets buffer prior to any
-       * computation (the VTK wrapper already includes a mecanism to
+       * computation (the VTK wrapper already includes a mechanism to
        * automatically generate such a preconditioned buffer).
        * @see examples/c++/main.cpp for an example use.
        */
@@ -183,11 +180,11 @@ namespace ttk {
       // arcs
       // .....................{
 
-      inline idSuperArc getNumberOfSuperArcs(void) const {
+      inline idSuperArc getNumberOfSuperArcs() const {
         return treeData_.superArcs.size();
       }
 
-      inline idSuperArc getNumberOfVisibleArcs(void) const {
+      inline idSuperArc getNumberOfVisibleArcs() const {
         // Costly ! for dedbug only
         idSuperArc visibleArc = 0;
         for(const SuperArc &arc : treeData_.superArcs) {
@@ -197,7 +194,7 @@ namespace ttk {
         return visibleArc;
       }
 
-      inline const std::vector<SuperArc> &getSuperArc(void) const {
+      inline const std::vector<SuperArc> &getSuperArc() const {
         // break encapsulation...
         return treeData_.superArcs;
       }
@@ -235,11 +232,11 @@ namespace ttk {
       // nodes
       // .....................{
 
-      inline idNode getNumberOfNodes(void) const {
+      inline idNode getNumberOfNodes() const {
         return treeData_.nodes.size();
       }
 
-      inline const std::vector<Node> &getNodes(void) const {
+      inline const std::vector<Node> &getNodes() const {
         // break encapsulation...
         return treeData_.nodes;
       }
@@ -252,11 +249,11 @@ namespace ttk {
       // leaves / root
       // .....................{
 
-      inline SimplexId getNumberOfLeaves(void) const {
+      inline SimplexId getNumberOfLeaves() const {
         return treeData_.leaves.size();
       }
 
-      inline const std::vector<idNode> &getLeaves(void) const {
+      inline const std::vector<idNode> &getLeaves() const {
         // break encapsulation...
         return treeData_.leaves;
       }
@@ -271,7 +268,7 @@ namespace ttk {
         return treeData_.leaves[id];
       }
 
-      inline const std::vector<idNode> &getRoots(void) const {
+      inline const std::vector<idNode> &getRoots() const {
         // break encapsulation...
         return treeData_.roots;
       }
@@ -333,7 +330,7 @@ namespace ttk {
       }
 
       // }
-      // Get vertex correponding object
+      // Get vertex corresponding object
       // ................................{
 
       inline SuperArc *vertex2SuperArc(const SimplexId &vert) {
@@ -404,14 +401,18 @@ namespace ttk {
 
       // BFS simplification for local CT
       template <typename scalarType>
-      SimplexId localSimplify(const SimplexId &podSeed0,
-                              const SimplexId &podSeed1);
+      SimplexId localSimplify(
+        const SimplexId &podSeed0,
+        const SimplexId &podSeed1,
+        std::list<std::vector<std::pair<SimplexId, bool>>> &storage);
 
       // BFS simpliciation for global CT
       template <typename scalarType, typename triangulationType>
-      SimplexId globalSimplify(const SimplexId posSeed0,
-                               const SimplexId posSeed1,
-                               const triangulationType &mesh);
+      SimplexId globalSimplify(
+        const SimplexId posSeed0,
+        const SimplexId posSeed1,
+        std::list<std::vector<std::pair<SimplexId, bool>>> &storage,
+        const triangulationType &mesh);
 
       // Having sorted std::pairs, simplify the current tree
       // in accordance with threashol, between the two seeds.
@@ -419,6 +420,7 @@ namespace ttk {
       SimplexId simplifyTree(
         const SimplexId &posSeed0,
         const SimplexId &posSeed1,
+        std::list<std::vector<std::pair<SimplexId, bool>>> &storage,
         const std::vector<std::tuple<SimplexId, SimplexId, scalarType, bool>>
           &sortedPairs);
 
@@ -530,12 +532,13 @@ namespace ttk {
       idNode getParent(const idNode &n);
 
       void delNode(const idNode &node,
+                   std::list<std::vector<std::pair<SimplexId, bool>>> &storage,
                    const std::pair<SimplexId, bool> *mv = nullptr,
                    const SimplexId &nbm = 0);
 
       void hideNode(const idNode &node);
 
-      // For persistance std::pair on CT
+      // For persistence std::pair on CT
       // these function allow to make a JT / ST od the CT
       std::vector<idNode> getNodeNeighbors(const idNode &node);
 
@@ -553,14 +556,14 @@ namespace ttk {
                                        const SimplexId &v);
 
       // }
-      // Update informations
+      // Update information
       // ...........................{
 
       void updateSegmentation();
 
       void parallelUpdateSegmentation(const bool ct = false);
 
-      // will disapear
+      // will disappear
       void parallelInitNodeValence(const int nbThreadValence);
 
       // }
@@ -572,7 +575,7 @@ namespace ttk {
       // {
 
       // Print
-      void printTree2(void);
+      void printTree2();
 
       std::string printArc(const idSuperArc &a) {
         const SuperArc *sa = getSuperArc(a);
@@ -623,7 +626,7 @@ namespace ttk {
       }
 
       // Clone
-      MergeTree *clone() const;
+      std::shared_ptr<MergeTree> clone() const;
 
       void clone(const MergeTree *mt);
 

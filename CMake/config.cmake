@@ -1,13 +1,13 @@
 # --- Prerequisites
 
-set(CMAKE_CXX_STANDARD 11)
+set(CMAKE_CXX_STANDARD 17)
 
 # --- Global Options
 
 option(TTK_BUILD_VTK_WRAPPERS "Build the TTK VTK Wrappers" ON)
 cmake_dependent_option(TTK_BUILD_PARAVIEW_PLUGINS "Build the TTK ParaView Plugins" ON "TTK_BUILD_VTK_WRAPPERS" OFF)
 option(TTK_BUILD_STANDALONE_APPS "Build the TTK Standalone Applications" ON)
-option(TTK_WHITELIST_MODE "Explicitely enable each filter" OFF)
+option(TTK_WHITELIST_MODE "Explicitly enable each filter" OFF)
 mark_as_advanced(TTK_WHITELIST_MODE BUILD_SHARED_LIBS)
 
 # This option allows library to be built dynamic
@@ -32,7 +32,7 @@ endif ()
 # This variable has two possible values "SingleArray" and "OffsetAndConnectiviy".
 # * "SingleArray" use a layout compatible with VTK < 9 were the cell array store the
 #   cells and their connectivity in a flat array
-# * "OffsetAndConnectivity" use a layout comatible with VTK >= 9, having two arrays
+# * "OffsetAndConnectivity" use a layout compatible with VTK >= 9, having two arrays
 #   (see https://vtk.org/doc/nightly/html/classvtkCellArray.html#details for more info)
 set(TTK_CELL_ARRAY_LAYOUT "SingleArray" CACHE STRING "Layout for the cell array.")
 set_property(CACHE TTK_CELL_ARRAY_LAYOUT PROPERTY STRINGS "SingleArray" "OffsetAndConnectivity")
@@ -43,13 +43,18 @@ mark_as_advanced(TTK_CELL_ARRAY_LAYOUT)
 option(TTK_ENABLE_MPI "Enable MPI support" FALSE)
 if (TTK_ENABLE_MPI)
   find_package(MPI REQUIRED)
+  option(TTK_ENABLE_MPI_TIME "Enable time measuring for MPI computation" FALSE)
+  mark_as_advanced(TTK_ENABLE_MPI_TIME)
+  option(TTK_ENABLE_MPI_RANK_ID_INT "Enable rank ids of type int (default char) for distributed sort" FALSE)
+  mark_as_advanced(TTK_ENABLE_MPI_RANK_ID_INT)
+
 endif()
 
 if(TTK_BUILD_PARAVIEW_PLUGINS OR TTK_BUILD_VTK_WRAPPERS)
   # Find ParaView, otherwise VTK
   find_package(ParaView)
   if(ParaView_FOUND)
-    # hande version manually so we do not have to include
+    # handle version manually so we do not have to include
     # files from VTK / ParaView in the code.
     # this is necessary to work with build folder directly (MacOS)
     add_definitions(-DPARAVIEW_VERSION_MAJOR=${ParaView_VERSION_MAJOR})
@@ -64,7 +69,7 @@ if(TTK_BUILD_PARAVIEW_PLUGINS OR TTK_BUILD_VTK_WRAPPERS)
   else()
     find_package(VTK)
     if(VTK_FOUND)
-      # hande version manually so we do not have to include
+      # handle version manually so we do not have to include
       # files from VTK / ParaView in the code.
       # this is necessary to work with build folder directly (MacOS)
       add_definitions(-DVTK_VERSION_MAJOR=${VTK_VERSION_MAJOR})
@@ -98,20 +103,35 @@ endif()
 option(TTK_ENABLE_64BIT_IDS "Enable processing on large datasets" OFF)
 mark_as_advanced(TTK_ENABLE_64BIT_IDS)
 
-option(TTK_ENABLE_KAMIKAZE "Enable Kamikaze compilation mode" OFF)
+option(TTK_ENABLE_KAMIKAZE "Enable Kamikaze compilation mode" ON)
 mark_as_advanced(TTK_ENABLE_KAMIKAZE)
 
 option(TTK_ENABLE_CPU_OPTIMIZATION "Enable native CPU optimizations" ON)
 mark_as_advanced(TTK_ENABLE_CPU_OPTIMIZATION)
 
+set(TTK_IMPLICIT_PRECONDITIONS_THRESHOLD "256*256*256" CACHE STRING
+  "Disable implicit triangulation preconditions above this number of vertices" )
+mark_as_advanced(TTK_IMPLICIT_PRECONDITIONS_THRESHOLD)
+
 option(TTK_ENABLE_DOUBLE_TEMPLATING "Use double templating for bivariate data" OFF)
 mark_as_advanced(TTK_ENABLE_DOUBLE_TEMPLATING)
 
+option(TTK_REDUCE_TEMPLATE_INSTANTIATIONS "Use a reduced list of template instantiations to fasten build times" OFF)
+mark_as_advanced(TTK_REDUCE_TEMPLATE_INSTANTIATIONS)
+
+option(TTK_TIME_TARGETS "Print targets build time" OFF)
+mark_as_advanced(TTK_TIME_TARGETS)
+if(TTK_TIME_TARGETS)
+  set_property(GLOBAL PROPERTY RULE_LAUNCH_COMPILE "${CMAKE_COMMAND} -E time")
+endif()
+
+set(TTK_SCRIPTS_PATH scripts/ttk
+  CACHE PATH "Install path for TTK scripts"
+  )
+mark_as_advanced(TTK_SCRIPTS_PATH)
+
 option(TTK_ENABLE_SHARED_BASE_LIBRARIES "Generate shared base libraries instead of static ones" ON)
 mark_as_advanced(TTK_ENABLE_SHARED_BASE_LIBRARIES)
-if(TTK_ENABLE_SHARED_BASE_LIBRARIES AND MSVC)
-  set(CMAKE_WINDOWS_EXPORT_ALL_SYMBOLS ON)
-endif()
 
 option(TTK_BUILD_DOCUMENTATION "Build doxygen developer documentation" OFF)
 if(TTK_BUILD_DOCUMENTATION)
@@ -126,12 +146,30 @@ list(INSERT CMAKE_MODULE_PATH 0
 
 # mandatory packages
 
-find_package(Boost REQUIRED)
+find_package(Boost REQUIRED CONFIG)
 if(Boost_FOUND)
   message(STATUS "Found Boost ${Boost_VERSION} (${Boost_INCLUDE_DIR})")
 endif()
 
-# optional pakages
+# optional packages
+
+find_package(Torch QUIET)
+if(TORCH_FOUND)
+  option(TTK_ENABLE_TORCH "Enable Torch support" ON)
+  message(STATUS "Found Torch ${TORCH_VERSION} (${TORCH_LIBRARIES})")
+else()
+  option(TTK_ENABLE_TORCH "Enable Torch support" OFF)
+  message(STATUS "Torch not found, disabling Torch support in TTK.")
+endif()
+
+find_package(CGAL QUIET)
+if(CGAL_FOUND)
+  option(TTK_ENABLE_CGAL "Enable CGAL support" ON)
+  message(STATUS "Found CGAL ${CGAL_VERSION} (${CGAL_DIR})")
+else()
+  option(TTK_ENABLE_CGAL "Enable CGAL support" OFF)
+  message(STATUS "CGAL not found, disabling CGAL support in TTK.")
+endif()
 
 find_package(ZLIB QUIET)
 if(ZLIB_FOUND)
@@ -142,7 +180,11 @@ else()
   message(STATUS "Zlib not found, disabling Zlib support in TTK.")
 endif()
 
-find_package(EMBREE 3.4 QUIET)
+# TTK supports embree 3 (>= 3.4) and embree 4, prefer embree 4 if available
+find_package(EMBREE 4 QUIET)
+if(NOT EMBREE_FOUND)
+  find_package(EMBREE 3.4 QUIET)
+endif()
 if(EMBREE_FOUND)
   option(TTK_ENABLE_EMBREE "Enable embree raytracing for ttkCinemaImaging" ON)
   message(STATUS "Found Embree ${EMBREE_VERSION} (${EMBREE_LIBRARY})")
@@ -169,6 +211,15 @@ else()
   message(STATUS "SQLite3 not found, disabling SQLite3 support in TTK.")
 endif()
 
+find_package(TBB QUIET)
+if (TBB_FOUND)
+  option(TTK_ENABLE_TBB "Enable TBB support" ON)
+  message(STATUS "Found TBB ${TBB_VERSION} (${TBB_DIR})")
+else()
+  option(TTK_ENABLE_TBB "Enable TBB support" OFF)
+  message(STATUS "TBB not found, disabling TBB support in TTK.")
+endif()
+
 find_package(ZFP QUIET)
 if(ZFP_INCLUDE_DIRS)
   option(TTK_ENABLE_ZFP "Enable ZFP support" ON)
@@ -185,8 +236,8 @@ if(NOT TTK_ENABLE_ZFP)
   find_package(ZFP QUIET)
 endif()
 
-find_package(Eigen3 3.3 QUIET NO_MODULE)
-if(EIGEN3_FOUND)
+find_package(Eigen3 QUIET NO_MODULE)
+if(Eigen3_FOUND)
   option(TTK_ENABLE_EIGEN "Enable Eigen3 support" ON)
   message(STATUS "Found Eigen ${Eigen3_VERSION} (${EIGEN3_INCLUDE_DIR})")
 
@@ -223,9 +274,16 @@ else()
 endif()
 
 if(MSVC)
-  option(TTK_ENABLE_OPENMP "Enable OpenMP support" FALSE)
+  option(TTK_ENABLE_OPENMP "Enable OpenMP support" TRUE)
+  option(TTK_ENABLE_OPENMP4 "Enable OpenMP4 support" FALSE)
+  set(OpenMP_CXX_FLAGS /openmp:llvm
+      CACHE STRING "CXX compiler flags for OpenMP parallelization")
+  set(OpenMP_C_FLAGS /openmp:llvm
+      CACHE STRING "C compiler flags for OpenMP parallelization")
 else()
   option(TTK_ENABLE_OPENMP "Enable OpenMP support" TRUE)
+  option(TTK_ENABLE_OPENMP4 "Enable OpenMP4 support" TRUE)
+  mark_as_advanced(TTK_ENABLE_OPENMP4)
 endif()
 if(TTK_ENABLE_OPENMP)
   find_package(OpenMP REQUIRED)
@@ -240,7 +298,7 @@ if(TTK_ENABLE_OPENMP)
         OFF
         CACHE
         BOOL
-        "Enable priorities on opnemp tasks"
+        "Enable priorities on openmp tasks"
         FORCE
         )
     endif()
@@ -269,6 +327,20 @@ if(WEBSOCKETPP_FOUND)
 else()
   option(TTK_ENABLE_WEBSOCKETPP "Enable WebSocketIO module" OFF)
   message(STATUS "WebSocketPP not found, disabling WebSocketIO module in TTK.")
+endif()
+
+
+option(TTK_ENABLE_QHULL "Use Qhull instead of Boost for convex hulls" ON)
+if (TTK_ENABLE_QHULL)
+  find_package(Qhull QUIET)
+  if(Qhull_FOUND AND TARGET Qhull::qhullcpp)
+    message(STATUS "Found Qhull::qhullcpp ${Qhull_VERSION} (${Qhull_DIR})")
+  else()
+    set(Qhull_FOUND FALSE)
+  endif()
+  if(NOT Qhull_FOUND)
+    message(STATUS "Qhull::qhullcpp not found, disabling Qhull support in TTK.")
+  endif()
 endif()
 
 # --- Install path

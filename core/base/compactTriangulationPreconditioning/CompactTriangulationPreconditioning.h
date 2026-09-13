@@ -45,7 +45,8 @@ namespace ttk {
                                                 // will be printed at the
       // beginning of every msg
     };
-    ~CompactTriangulationPreconditioning(){};
+    ~CompactTriangulationPreconditioning() override = default;
+    ;
 
     template <class triangulationType = ttk::AbstractTriangulation>
     int execute(const triangulationType *triangulation,
@@ -67,16 +68,13 @@ namespace ttk {
       // Compute Octree
       // -----------------------------------------------------------------------
       {
-        // start a local timer for this subprocedure
-        ttk::Timer localTimer;
-
 #ifndef TTK_ENABLE_KAMIKAZE
         if(!triangulation)
           return -1;
 #endif
 
         SimplexId vertexNumber = triangulation->getNumberOfVertices();
-        SimplexId cellNumber = triangulation->getNumberOfCells();
+        SimplexId const cellNumber = triangulation->getNumberOfCells();
 
         // create the octree
         Octree preOctree(triangulation, argument);
@@ -118,6 +116,16 @@ namespace ttk {
       this->vertices.clear();
       this->nodes.clear();
       this->cells.clear();
+    }
+
+    const std::vector<SimplexId> &getVertices() const {
+      return this->vertices;
+    }
+    const std::vector<SimplexId> &getNodes() const {
+      return this->nodes;
+    }
+    const std::vector<SimplexId> &getCells() const {
+      return this->cells;
     }
 
   protected:

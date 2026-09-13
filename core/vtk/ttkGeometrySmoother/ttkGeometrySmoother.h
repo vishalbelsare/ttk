@@ -26,21 +26,39 @@
 ///   href="https://topology-tool-kit.github.io/examples/1manifoldLearning/">1-Manifold
 ///   Learning example</a> \n
 ///   - <a
-///   href="https://topology-tool-kit.github.io/examples/1manifoldLearningCircles/">1-Manifold
-///   Learning Circles example</a> \n
-///   - <a
 ///   href="https://topology-tool-kit.github.io/examples/2manifoldLearning/">
 ///   2-Manifold Learning example</a> \n
+///   - <a href="https://topology-tool-kit.github.io/examples/cosmicWeb/">
+///   Cosmic Web example</a> \n
 ///   - <a href="https://topology-tool-kit.github.io/examples/dragon/">Dragon
 /// example</a> \n
 ///   - <a
 ///   href="https://topology-tool-kit.github.io/examples/harmonicSkeleton/">
 ///   Harmonic Skeleton example</a> \n
-///   - <a href="https://topology-tool-kit.github.io/examples/morseMolecule/">
-/// Morse molecule example</a> \n
 ///   - <a
 ///   href="https://topology-tool-kit.github.io/examples/interactionSites/">
-///   Interaction sites</a> \n
+///   Interaction sites example</a> \n
+///   - <a
+///   href="https://topology-tool-kit.github.io/examples/mergeTreePGA/">Merge
+///   Tree Principal Geodesic Analysis example</a> \n
+///   - <a
+///   href="https://topology-tool-kit.github.io/examples/molecularVibration/">Molecular
+///   Vibration example</a> \n
+///   - <a
+///   href="https://topology-tool-kit.github.io/examples/morseMolecule/">
+///   Morse Molecule example</a> \n
+///   - <a
+///   href="https://topology-tool-kit.github.io/examples/morseSmaleSegmentation_at/">Morse-Smale
+///   segmentation example</a> \n
+///   - <a
+///   href="https://topology-tool-kit.github.io/examples/mpiExample/">
+///   MPI example</a> \n
+///   - <a
+///   href="https://topology-tool-kit.github.io/examples/persistenceDiagramPGA/">Persistence
+///   Diagram Principal Geodesic Analysis example</a> \n
+///   - <a
+///   href="https://topology-tool-kit.github.io/examples/topologicalOptimization_pegasus/">Topological
+///   Optimization for Pegasus Genus Repair example</a>\n
 ///
 
 #pragma once
@@ -55,12 +73,16 @@ class TTKGEOMETRYSMOOTHER_EXPORT ttkGeometrySmoother
 
 private:
   int NumberOfIterations{1};
+  bool UseMaskScalarField{true};
   int MaskIdentifier{0};
   bool ForceInputMaskScalarField{false};
 
 public:
   vtkSetMacro(NumberOfIterations, int);
   vtkGetMacro(NumberOfIterations, int);
+
+  vtkSetMacro(UseMaskScalarField, bool);
+  vtkGetMacro(UseMaskScalarField, bool);
 
   vtkSetMacro(MaskIdentifier, int);
   vtkGetMacro(MaskIdentifier, int);
@@ -73,7 +95,7 @@ public:
 
 protected:
   ttkGeometrySmoother();
-  ~ttkGeometrySmoother();
+  ~ttkGeometrySmoother() override;
 
   int FillInputPortInformation(int port, vtkInformation *info) override;
   int FillOutputPortInformation(int port, vtkInformation *info) override;

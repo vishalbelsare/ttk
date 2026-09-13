@@ -3,6 +3,7 @@
 
 #include <vtkPointData.h>
 #include <vtkTexture.h>
+#include <vtkVersionMacros.h>
 
 #ifndef TTK_INSTALL_ASSETS_DIR
 #define TTK_INSTALL_ASSETS_DIR "."
@@ -64,8 +65,8 @@ void ttkCustomInteractor::OnKeyPress() {
 
 ttkUserInterfaceBase::ttkUserInterfaceBase() {
 
-  keyHandler_ = NULL;
-  vtkWrapper_ = NULL;
+  keyHandler_ = nullptr;
+  vtkWrapper_ = nullptr;
   isUp_ = false;
   repeat_ = false;
   transparency_ = false;
@@ -86,14 +87,17 @@ ttkUserInterfaceBase::ttkUserInterfaceBase() {
                   && (pngReader_->GetOutput()->GetNumberOfCells() == 1));
 }
 
-ttkUserInterfaceBase::~ttkUserInterfaceBase() {
-}
+ttkUserInterfaceBase::~ttkUserInterfaceBase() = default;
 
 int ttkUserInterfaceBase::exportScene(const string &fileName) const {
 
   vtkVRMLExporter *exporter = vtkVRMLExporter::New();
 
+#if VTK_VERSION_NUMBER >= VTK_VERSION_CHECK(9, 6, 1)
+  exporter->SetRenderWindow(renderWindow_);
+#else
   exporter->SetInput(renderWindow_);
+#endif
   exporter->SetFileName(fileName.data());
   exporter->Write();
 
@@ -114,7 +118,7 @@ int ttkUserInterfaceBase::init(int &argc, char **argv) {
 int ttkUserInterfaceBase::refresh() {
 
   // collect the output and update the rendering
-  int outputPortNumber = vtkWrapper_->GetNumberOfOutputPorts();
+  int const outputPortNumber = vtkWrapper_->GetNumberOfOutputPorts();
 
   if((int)visibleOutputs_.size() != outputPortNumber) {
     visibleOutputs_.resize(outputPortNumber, true);
@@ -128,7 +132,7 @@ int ttkUserInterfaceBase::refresh() {
   }
 
   if((int)surfaces_.size() != outputPortNumber) {
-    surfaces_.resize(outputPortNumber, NULL);
+    surfaces_.resize(outputPortNumber, nullptr);
     mainActors_.resize(outputPortNumber);
     boundaryFilters_.resize(outputPortNumber);
     boundaryMappers_.resize(outputPortNumber);
@@ -147,7 +151,7 @@ int ttkUserInterfaceBase::refresh() {
     if(visibleOutputs_[i]) {
 
       if(hasTexture_) {
-        vtkWrapper_->GetOutput(i)->GetPointData()->SetActiveScalars(NULL);
+        vtkWrapper_->GetOutput(i)->GetPointData()->SetActiveScalars(nullptr);
       }
 
       if((repeat_) && (i < vtkWrapper_->GetNumberOfInputPorts())) {
@@ -168,7 +172,7 @@ int ttkUserInterfaceBase::refresh() {
     if(visibleOutputs_[i]) {
       mainActors_[i]->SetMapper(boundaryMappers_[i]);
     } else {
-      mainActors_[i]->SetMapper(NULL);
+      mainActors_[i]->SetMapper(nullptr);
     }
     if(transparency_) {
       mainActors_[i]->GetProperty()->SetOpacity(0.3);
@@ -190,7 +194,7 @@ int ttkUserInterfaceBase::run() {
 
   {
     stringstream msg;
-    msg << "[UserInterace] Initializing user interface..." << endl;
+    msg << "[UserInterface] Initializing user interface..." << std::endl;
     printMsg(msg.str());
   }
 
@@ -215,7 +219,7 @@ int ttkUserInterfaceBase::run() {
 
   {
     stringstream msg;
-    msg << "[ttkUserInterfaceBase] Running user interface!" << endl;
+    msg << "[ttkUserInterfaceBase] Running user interface!" << std::endl;
     printMsg(msg.str());
   }
 
@@ -242,7 +246,7 @@ int ttkUserInterfaceBase::switchOutput(const int &outputId) {
   } else {
     msg << "on";
   }
-  msg << endl;
+  msg << std::endl;
   printMsg(msg.str());
 
   visibleOutputs_[outputId] = !visibleOutputs_[outputId];
@@ -260,7 +264,7 @@ int ttkUserInterfaceBase::switchTransparency() {
   } else {
     msg << "on";
   }
-  msg << endl;
+  msg << std::endl;
   printMsg(msg.str());
 
   transparency_ = !transparency_;

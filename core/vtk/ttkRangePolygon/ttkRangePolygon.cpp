@@ -27,8 +27,7 @@ ttkRangePolygon::ttkRangePolygon() {
                   "`Poly Line Source' followed by `Resample With Dataset'.");
 }
 
-ttkRangePolygon::~ttkRangePolygon() {
-}
+ttkRangePolygon::~ttkRangePolygon() = default;
 
 int ttkRangePolygon::FillInputPortInformation(int port, vtkInformation *info) {
   if(port == 0)
@@ -76,15 +75,15 @@ int ttkRangePolygon::processPoints(vtkUnstructuredGrid *input,
 
   Timer t;
 
-  vtkSmartPointer<vtkPoints> pointSet = vtkSmartPointer<vtkPoints>::New();
+  vtkSmartPointer<vtkPoints> const pointSet = vtkSmartPointer<vtkPoints>::New();
   output->SetPoints(pointSet);
 
   output->GetPoints()->ShallowCopy(input->GetPoints());
   output->GetPointData()->ShallowCopy(input->GetPointData());
 
-  vtkSmartPointer<vtkCellArray> edgeArray
+  vtkSmartPointer<vtkCellArray> const edgeArray
     = vtkSmartPointer<vtkCellArray>::New();
-  vtkSmartPointer<vtkIdList> idList = vtkSmartPointer<vtkIdList>::New();
+  vtkSmartPointer<vtkIdList> const idList = vtkSmartPointer<vtkIdList>::New();
   idList->SetNumberOfIds(2);
 
   for(SimplexId i = 0; i < input->GetNumberOfPoints(); i++) {
@@ -114,17 +113,17 @@ int ttkRangePolygon::processTriangles(vtkUnstructuredGrid *input,
 
   Timer t;
 
-  vtkSmartPointer<vtkDataSetSurfaceFilter> surfaceMaker
+  vtkSmartPointer<vtkDataSetSurfaceFilter> const surfaceMaker
     = vtkSmartPointer<vtkDataSetSurfaceFilter>::New();
 
   surfaceMaker->SetInputData(input);
 
-  vtkSmartPointer<vtkCleanPolyData> surfaceCleaner
+  vtkSmartPointer<vtkCleanPolyData> const surfaceCleaner
     = vtkSmartPointer<vtkCleanPolyData>::New();
 
   surfaceCleaner->SetInputConnection(surfaceMaker->GetOutputPort());
 
-  vtkSmartPointer<vtkFeatureEdges> featureEdges
+  vtkSmartPointer<vtkFeatureEdges> const featureEdges
     = vtkSmartPointer<vtkFeatureEdges>::New();
 
   featureEdges->SetBoundaryEdges(true);
@@ -134,7 +133,7 @@ int ttkRangePolygon::processTriangles(vtkUnstructuredGrid *input,
   featureEdges->SetColoring(false);
   featureEdges->SetInputConnection(surfaceCleaner->GetOutputPort());
 
-  vtkSmartPointer<vtkDataSetTriangleFilter> triangleMaker
+  vtkSmartPointer<vtkDataSetTriangleFilter> const triangleMaker
     = vtkSmartPointer<vtkDataSetTriangleFilter>::New();
 
   triangleMaker->SetInputConnection(featureEdges->GetOutputPort());

@@ -5,4 +5,7 @@ ttk_add_base_library(topologicalSimplification
     TopologicalSimplification.h
   DEPENDS
     triangulation
+    legacyTopologicalSimplification
+    localizedTopologicalSimplification
+    topologicalOptimization
     )

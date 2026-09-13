@@ -35,8 +35,7 @@ ttkWebSocketIO::ttkWebSocketIO() {
   this->SetNumberOfOutputPorts(1);
 }
 
-ttkWebSocketIO::~ttkWebSocketIO() {
-}
+ttkWebSocketIO::~ttkWebSocketIO() = default;
 
 int ttkWebSocketIO::FillInputPortInformation(int port, vtkInformation *info) {
   if(port == 0) {
@@ -125,8 +124,8 @@ void jsonArrayToArray(const boost::property_tree::ptree &pt,
   }
 }
 
-bool jsonHasChild(const boost::property_tree::ptree &pt,
-                  const boost::property_tree::ptree::key_type &key) {
+static bool jsonHasChild(const boost::property_tree::ptree &pt,
+                         const boost::property_tree::ptree::key_type &key) {
   return pt.find(key) != pt.not_found();
 }
 
@@ -178,7 +177,8 @@ int ttkWebSocketIO::ParseVtkDataObjectFromJSON(const std::string &json) {
       auto nPoints
         = jsonGetValue<int>(jsonVtkDataSet, "points.coordinates.nTuples");
 
-      vtkSmartPointer<vtkPoints> points = vtkSmartPointer<vtkPoints>::New();
+      vtkSmartPointer<vtkPoints> const points
+        = vtkSmartPointer<vtkPoints>::New();
       points->SetNumberOfPoints(nPoints);
 
       jsonArrayToArray<float>(jsonVtkDataSet, "points.coordinates.data",
@@ -245,10 +245,11 @@ int ttkWebSocketIO::ParseVtkDataObjectFromJSON(const std::string &json) {
                                      const boost::property_tree::ptree &fdJSON,
                                      const std::string &fdKey) {
       // parse point data
-      for(auto pda : fdJSON.get_child(fdKey)) {
-        auto &jsonArray = pda.second;
-        size_t nComponents = jsonGetValue<size_t>(jsonArray, "nComponents");
-        size_t nTuples = jsonGetValue<size_t>(jsonArray, "nTuples");
+      for(const auto &pda : fdJSON.get_child(fdKey)) {
+        const auto &jsonArray = pda.second;
+        size_t const nComponents
+          = jsonGetValue<size_t>(jsonArray, "nComponents");
+        size_t const nTuples = jsonGetValue<size_t>(jsonArray, "nTuples");
 
         auto array = vtkSmartPointer<vtkAbstractArray>::Take(
           vtkDataArray::CreateArray(jsonGetValue<int>(jsonArray, "dataType")));
@@ -399,11 +400,15 @@ int ttkWebSocketIO::SendVtkDataObject(vtkDataObject *object) {
 
       if(block->IsA("vtkUnstructuredGrid")) {
         auto blockAsUG = vtkUnstructuredGrid::SafeDownCast(block);
-        cells = blockAsUG->GetCells();
+        if(blockAsUG != nullptr) {
+          cells = blockAsUG->GetCells();
+        }
       } else if(block->IsA("vtkPolyData")) {
         auto blockAsPD = vtkPolyData::SafeDownCast(block);
-        cells = blockAsPD->GetPolys() ? blockAsPD->GetPolys()
-                                      : blockAsPD->GetLines();
+        if(blockAsPD != nullptr) {
+          cells = blockAsPD->GetPolys() ? blockAsPD->GetPolys()
+                                        : blockAsPD->GetLines();
+        }
       }
 
       if(cells) {
@@ -459,13 +464,16 @@ int ttkWebSocketIO::SendVtkDataObject(vtkDataObject *object) {
            {"fieldData", block->GetFieldData()}};
 
       for(auto &attribute : attributes) {
-        size_t nArrays = attribute.second->GetNumberOfArrays();
+        size_t const nArrays = attribute.second->GetNumberOfArrays();
 
         for(size_t i = 0; i < nArrays; i++) {
           auto array = attribute.second->GetAbstractArray(i);
 
           if(array->IsA("vtkDataArray")) {
             auto dataArray = vtkDataArray::SafeDownCast(array);
+            if(dataArray == nullptr) {
+              continue;
+            }
             this->queueMessage(
               "{"
               "\"target\":\""

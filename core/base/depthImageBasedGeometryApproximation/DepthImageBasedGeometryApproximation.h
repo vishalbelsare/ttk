@@ -13,6 +13,11 @@
 /// Jonas Lukasczyk, Eric Kinner, James Ahrens, Heike Leitte, and Christoph
 /// Garth. IEEE 8th Symposium on Large Data Analysis and Visualization (LDAV),
 /// 2018.
+///
+/// \b Online \b examples: \n
+///   - <a
+///   href="https://topology-tool-kit.github.io/examples/geometryApproximation/">Geometry
+///   Approximation example</a> \n
 
 #pragma once
 
@@ -31,7 +36,7 @@ namespace ttk {
     DepthImageBasedGeometryApproximation() {
       this->setDebugMsgPrefix("DIBGA");
     }
-    ~DepthImageBasedGeometryApproximation() = default;
+    ~DepthImageBasedGeometryApproximation() override = default;
 
     /**
      * This function computes for an input depth image and its corresponding
@@ -160,7 +165,7 @@ int ttk::DepthImageBasedGeometryApproximation::execute(
                                     camPos[2] - camRight[2] * camWidthWorldHalf
                                       - camUpTrue[2] * camHeightWorldHalf};
 
-// Compute vertex coordinates while parallizing over rows
+// Compute vertex coordinates while parallelizing over rows
 #ifdef TTK_ENABLE_OPENMP
 #pragma omp parallel for num_threads(threadNumber_)
 #endif
@@ -221,15 +226,15 @@ int ttk::DepthImageBasedGeometryApproximation::execute(
 #pragma omp parallel for num_threads(this->threadNumber_)
 #endif
     for(size_t y = 0; y < yl; y++) {
-      size_t yOffset = y * resolutionST[0];
+      size_t const yOffset = y * resolutionST[0];
       size_t triangleIndexOffset = y * trianglesPerRow * 3;
       size_t triangleDistortionOffset = y * trianglesPerRow;
 
       for(size_t x = 0; x < xl; x++) {
-        size_t i0 = x + yOffset;
-        size_t i1 = i0 + 1;
-        size_t i2 = i0 + resolutionST[0];
-        size_t i3 = i2 + 1;
+        size_t const i0 = x + yOffset;
+        size_t const i1 = i0 + 1;
+        size_t const i2 = i0 + resolutionST[0];
+        size_t const i3 = i2 + 1;
 
         connectivityList[triangleIndexOffset++] = i0;
         connectivityList[triangleIndexOffset++] = i2;
@@ -248,16 +253,16 @@ int ttk::DepthImageBasedGeometryApproximation::execute(
         triangleDistortions[triangleDistortionOffset++]
           = isNaN(i0Depth) || isNaN(i2Depth) || isNaN(i1Depth)
               ? myNan
-              : std::max(
-                absDiff(i0Depth, i1Depth),
-                std::max(absDiff(i1Depth, i2Depth), absDiff(i0Depth, i2Depth)));
+              : std::max(absDiff(i0Depth, i1Depth),
+                         std::max(absDiff(i1Depth, i2Depth),
+                                  absDiff(i0Depth, i2Depth)));
 
         triangleDistortions[triangleDistortionOffset++]
           = isNaN(i1Depth) || isNaN(i2Depth) || isNaN(i3Depth)
               ? myNan
-              : std::max(
-                absDiff(i1Depth, i3Depth),
-                std::max(absDiff(i3Depth, i2Depth), absDiff(i2Depth, i1Depth)));
+              : std::max(absDiff(i1Depth, i3Depth),
+                         std::max(absDiff(i3Depth, i2Depth),
+                                  absDiff(i2Depth, i1Depth)));
       }
     }
   }

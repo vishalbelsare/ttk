@@ -43,12 +43,25 @@
 /// \sa ttk::ScalarFieldSmoother
 ///
 /// \b Online \b examples: \n
+///   - <a href="https://topology-tool-kit.github.io/examples/cosmicWeb/">
+///   Cosmic Web example</a> \n
 ///   - <a
 ///   href="https://topology-tool-kit.github.io/examples/morsePersistence/">Morse
 ///   Persistence example</a> \n
+///   - <a
+///   href="https://topology-tool-kit.github.io/examples/mpiExample/">
+///   MPI example</a> \n
+///   - <a
+///   href="https://topology-tool-kit.github.io/examples/persistentGenerators_darkSky/">Persistent
+///   Generators Dark Sky example</a> \n
+///   - <a
+///   href="https://topology-tool-kit.github.io/examples/topologicalOptimization_darkSky/">Topological
+///   Optimization DarkSky</a>\n
+///   - <a
+///   href="https://topology-tool-kit.github.io/examples/topologicalOptimization_pegasus/">Topological
+///   Optimization for Pegasus Genus Repair example</a>\n
 
-#ifndef _TTK_SCALAR_FIELD_SMOOTHER_H
-#define _TTK_SCALAR_FIELD_SMOOTHER_H
+#pragma once
 
 // VTK includes
 
@@ -91,5 +104,3 @@ private:
   int NumberOfIterations{1};
   bool ForceInputMaskScalarField{false};
 };
-
-#endif // _TTK_SCALAR_FIELD_SMOOTHER_H

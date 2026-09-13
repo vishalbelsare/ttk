@@ -87,12 +87,12 @@ namespace ttk {
         rangeBox_{};
       std::vector<SimplexId> cellList_{};
       std::vector<SimplexId> childList_{};
-      std::vector<std::pair<float, float>> domainBox_{};
+      std::array<std::pair<float, float>, 3> domainBox_{};
     };
 
     template <class dataTypeU, class dataTypeV>
     int buildNode(const std::vector<SimplexId> &cellList,
-                  const std::vector<std::pair<float, float>> &domainBox,
+                  const std::array<std::pair<float, float>, 3> &domainBox,
                   const std::pair<std::pair<double, double>,
                                   std::pair<double, double>> &rangeBox,
                   SimplexId &nodeId);
@@ -117,7 +117,7 @@ namespace ttk {
       rootId_{};
     mutable SimplexId queryResultNumber_{};
     std::vector<OctreeNode> nodeList_{};
-    std::vector<std::vector<std::pair<float, float>>> cellDomainBox_{};
+    std::vector<std::array<std::pair<float, float>, 3>> cellDomainBox_{};
     std::vector<std::pair<std::pair<double, double>, std::pair<double, double>>>
       cellRangeBox_{};
   };
@@ -132,8 +132,8 @@ int ttk::RangeDrivenOctree::build(
 
   Timer t;
 
-  dataTypeU *u = (dataTypeU *)u_;
-  dataTypeV *v = (dataTypeV *)v_;
+  const dataTypeU *u = (const dataTypeU *)u_;
+  const dataTypeV *v = (const dataTypeV *)v_;
 
   if(triangulation) {
     cellNumber_ = triangulation->getNumberOfCells();
@@ -143,7 +143,7 @@ int ttk::RangeDrivenOctree::build(
     vertexNumber_ = triangulation->getNumberOfVertices();
   }
 
-  cellDomainBox_.resize(cellNumber_, std::vector<std::pair<float, float>>(3));
+  cellDomainBox_.resize(cellNumber_);
 
   cellRangeBox_.resize(cellNumber_);
 
@@ -158,7 +158,7 @@ int ttk::RangeDrivenOctree::build(
       cellDomainBox_[i][j].second = -FLT_MAX;
     }
 
-    const SimplexId *cell = NULL;
+    const SimplexId *cell = nullptr;
     if(!triangulation) {
       cell = &(cellList_[5 * i + 1]);
     }
@@ -230,7 +230,7 @@ int ttk::RangeDrivenOctree::build(
     domain[i] = i;
 
   // get global bBoxes
-  std::vector<std::pair<float, float>> domainBox(3);
+  std::array<std::pair<float, float>, 3> domainBox{};
   std::pair<std::pair<double, double>, std::pair<double, double>> rangeBox;
 
   for(SimplexId i = 0; i < vertexNumber_; i++) {
@@ -302,24 +302,24 @@ int ttk::RangeDrivenOctree::build(
 template <class dataTypeU, class dataTypeV>
 int ttk::RangeDrivenOctree::buildNode(
   const std::vector<SimplexId> &cellList,
-  const std::vector<std::pair<float, float>> &domainBox,
+  const std::array<std::pair<float, float>, 3> &domainBox,
   const std::pair<std::pair<double, double>, std::pair<double, double>>
     &rangeBox,
   SimplexId &nodeId) {
 
   nodeId = nodeList_.size();
 
-  nodeList_.resize(nodeList_.size() + 1);
+  nodeList_.emplace_back();
 
   nodeList_.back().rangeBox_ = rangeBox;
   nodeList_.back().domainBox_ = domainBox;
 
-  float rangeArea = (rangeBox.first.second - rangeBox.first.first)
-                    * (rangeBox.second.second - rangeBox.second.first);
+  float const rangeArea = (rangeBox.first.second - rangeBox.first.first)
+                          * (rangeBox.second.second - rangeBox.second.first);
 
-  float domainVolume = (domainBox[0].second - domainBox[0].first)
-                       * (domainBox[1].second - domainBox[1].first)
-                       * (domainBox[2].second - domainBox[2].first);
+  float const domainVolume = (domainBox[0].second - domainBox[0].first)
+                             * (domainBox[1].second - domainBox[1].first)
+                             * (domainBox[2].second - domainBox[2].first);
 
   if(((SimplexId)cellList.size() > leafMinimumCellNumber_)
      && (rangeArea > leafMinimumRangeAreaRatio_ * rangeArea_)
@@ -327,20 +327,18 @@ int ttk::RangeDrivenOctree::buildNode(
 
     nodeList_.back().childList_.resize(8);
 
-    std::vector<std::vector<std::pair<float, float>>> childDomainBox(8);
-    for(SimplexId i = 0; i < (SimplexId)childDomainBox.size(); i++) {
-      childDomainBox[i].resize(3);
-    }
-    std::vector<std::pair<std::pair<dataTypeU, dataTypeU>,
-                          std::pair<dataTypeV, dataTypeV>>>
-      childRangeBox(8);
-    std::vector<std::vector<SimplexId>> childCellList(8);
+    std::array<std::array<std::pair<float, float>, 3>, 8> childDomainBox{};
+    std::array<std::pair<std::pair<dataTypeU, dataTypeU>,
+                         std::pair<dataTypeV, dataTypeV>>,
+               8>
+      childRangeBox{};
+    std::array<std::vector<SimplexId>, 8> childCellList{};
 
-    float midX
+    float const midX
       = domainBox[0].first + (domainBox[0].second - domainBox[0].first) / 2.0;
-    float midY
+    float const midY
       = domainBox[1].first + (domainBox[1].second - domainBox[1].first) / 2.0;
-    float midZ
+    float const midZ
       = domainBox[2].first + (domainBox[2].second - domainBox[2].first) / 2.0;
 
     // 0 - - -

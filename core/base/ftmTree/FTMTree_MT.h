@@ -12,31 +12,14 @@
 /// etc.).
 ///
 
-#ifndef FTMTREE_MT_H
-#define FTMTREE_MT_H
+#pragma once
 
 #include <functional>
 #include <map>
+#include <numeric>
 #include <queue>
 #include <set>
 #include <vector>
-
-#ifdef __APPLE__
-#include <algorithm>
-#include <numeric>
-#else
-#ifdef _WIN32
-#include <algorithm>
-#include <numeric>
-#else
-#ifdef __clang__
-#include <algorithm>
-#include <numeric>
-#else
-#include <parallel/algorithm>
-#endif
-#endif
-#endif
 
 #include <Geometry.h>
 #include <Triangulation.h>
@@ -55,34 +38,30 @@ namespace ttk {
   namespace ftm {
     using UF = AtomicUF *;
 
-    /*
-     * OpenMP use class field as thread-private, but we want to share them in
-     * the build we use ptr to allow the copy'ed version to share the same data
-     * (pointer private per thread on the same location shared)
-     */
-    // Tree datas ( 1 per tree )
+    // Tree data ( 1 per tree )
     struct TreeData {
       TreeType treeType;
 
       // components : tree / nodes / extrema
-      FTMAtomicVector<SuperArc> *superArcs = nullptr;
-      FTMAtomicVector<Node> *nodes = nullptr;
-      FTMAtomicVector<idNode> *roots = nullptr;
-      std::vector<idNode> *leaves = nullptr;
+      std::shared_ptr<FTMAtomicVector<SuperArc>> superArcs;
+      std::shared_ptr<FTMAtomicVector<Node>> nodes;
+      std::shared_ptr<FTMAtomicVector<idNode>> roots;
+      std::vector<idNode> leaves;
 
       // vertex 2 node / superarc
-      std::vector<idCorresp> *vert2tree = nullptr;
-      std::vector<SimplexId> *visitOrder = nullptr;
-      std::vector<std::list<std::vector<SimplexId>>> *trunkSegments = nullptr;
+      std::vector<idCorresp> vert2tree;
+      std::vector<SimplexId> visitOrder;
+      std::vector<std::list<std::vector<SimplexId>>> trunkSegments;
 
-      // Track informations
-      std::vector<UF> *ufs = nullptr;
-      std::vector<UF> *propagation = nullptr;
-      FTMAtomicVector<CurrentState> *states = nullptr;
+      // Track information
+      std::vector<AtomicUF> storage;
+      std::vector<UF> ufs;
+      std::vector<UF> propagation;
+      std::shared_ptr<FTMAtomicVector<CurrentState>> states;
       // valences
-      std::vector<valence> *valences = nullptr;
+      std::vector<valence> valences;
       // opened nodes
-      std::vector<char> *openedNodes = nullptr;
+      std::vector<char> openedNodes;
 
       // current nb of tasks
       idNode activeTasks;
@@ -92,7 +71,7 @@ namespace ttk {
       Segments segments_;
 
 #ifdef TTK_ENABLE_FTM_TREE_STATS_TIME
-      std::vector<ActiveTask> *activeTasksStats = nullptr;
+      std::vector<ActiveTask> activeTasksStats;
 #endif
 
 #ifdef TTK_ENABLE_OMP_PRIORITY
@@ -104,8 +83,8 @@ namespace ttk {
     class FTMTree_MT : virtual public Debug {
     protected:
       // global
-      Params *const params_;
-      Scalars *const scalars_;
+      std::shared_ptr<Params> params_;
+      std::shared_ptr<Scalars> scalars_;
 
       // local
       TreeData mt_data_;
@@ -117,20 +96,31 @@ namespace ttk {
       // -----------
 
       // Tree with global data and partition number
-      FTMTree_MT(Params *const params, Scalars *const scalars, TreeType type);
+      FTMTree_MT(const std::shared_ptr<Params> &params,
+                 const std::shared_ptr<Scalars> &scalars,
+                 TreeType type);
 
-      virtual ~FTMTree_MT();
+      ~FTMTree_MT() override;
+
+      void clear();
 
       // --------------------
       // Init
       // --------------------
+
+      inline void setParamsScalars(const std::shared_ptr<Params> &params,
+                                   const std::shared_ptr<Scalars> &scalars) {
+        this->scalars_ = scalars;
+        this->params_ = params;
+        this->mt_data_.treeType = params->treeType;
+      }
 
       template <class triangulationType>
       void initNbScalars(const triangulationType *triangulation) {
         scalars_->size = triangulation->getNumberOfVertices();
       }
 
-      void initComp(void) {
+      void initComp() {
         if(isST()) {
           comp_.vertLower
             = [this](const SimplexId a, const SimplexId b) -> bool {
@@ -158,10 +148,10 @@ namespace ttk {
 
       /// \brief if sortedVertices_ is null, define and fill it
       template <typename scalarType>
-      void sortInput(void);
+      void sortInput();
 
       /// \brief clear local data for new computation
-      void makeAlloc(void) {
+      void makeAlloc() {
         createAtomicVector<SuperArc>(mt_data_.superArcs);
 
         // Stats alloc
@@ -173,34 +163,34 @@ namespace ttk {
         mt_data_.roots->reserve(10);
 
         createVector<idNode>(mt_data_.leaves);
-        mt_data_.leaves->reserve(scalars_->size / 3);
+        mt_data_.leaves.reserve(scalars_->size / 3);
 
         // Known size
 
         createVector<idCorresp>(mt_data_.vert2tree);
-        mt_data_.vert2tree->resize(scalars_->size);
+        mt_data_.vert2tree.resize(scalars_->size);
 
         createVector<std::list<std::vector<SimplexId>>>(mt_data_.trunkSegments);
 
         createVector<SimplexId>(mt_data_.visitOrder);
-        mt_data_.visitOrder->resize(scalars_->size);
+        mt_data_.visitOrder.resize(scalars_->size);
 
         createVector<UF>(mt_data_.ufs);
-        mt_data_.ufs->resize(scalars_->size);
+        mt_data_.ufs.resize(scalars_->size);
 
         createVector<UF>(mt_data_.propagation);
-        mt_data_.propagation->resize(scalars_->size);
+        mt_data_.propagation.resize(scalars_->size);
 
         createVector<valence>(mt_data_.valences);
-        mt_data_.valences->resize(scalars_->size);
+        mt_data_.valences.resize(scalars_->size);
 
         createVector<char>(mt_data_.openedNodes);
-        mt_data_.openedNodes->resize(scalars_->size);
+        mt_data_.openedNodes.resize(scalars_->size);
 
         mt_data_.segments_.clear();
       }
 
-      void makeInit(void) {
+      void makeInit() {
         initVector<idCorresp>(mt_data_.vert2tree, nullCorresp);
         initVector<SimplexId>(mt_data_.visitOrder, nullVertex);
         initVector<UF>(mt_data_.ufs, nullptr);
@@ -211,8 +201,8 @@ namespace ttk {
 
       void initVectStates(const SimplexId nbLeaves) {
         if(!mt_data_.states) {
-          mt_data_.states
-            = new FTMAtomicVector<CurrentState>(nbLeaves, comp_.vertHigher);
+          mt_data_.states = std::make_shared<FTMAtomicVector<CurrentState>>(
+            nbLeaves, comp_.vertHigher);
         }
         mt_data_.states->clear();
         mt_data_.states->reserve(nbLeaves);
@@ -242,9 +232,9 @@ namespace ttk {
                      const SimplexId orig);
 
       template <class triangulationType>
-      std::tuple<bool, bool> propage(const triangulationType *mesh,
-                                     CurrentState &currentState,
-                                     UF curUF);
+      std::tuple<bool, bool> propagate(const triangulationType *mesh,
+                                       CurrentState &currentState,
+                                       UF curUF);
 
       template <class triangulationType>
       void closeAndMergeOnSaddle(const triangulationType *mesh,
@@ -271,12 +261,12 @@ namespace ttk {
 
       // segmentation
 
-      /// \brief use vert2tree to compute the segmentation of the fresh builded
+      /// \brief use vert2tree to compute the segmentation of the fresh built
       /// merge tree.
       void buildSegmentation();
 
       // Create the segmentation of all arcs by operating the pending operations
-      void finalizeSegmentation(void);
+      void finalizeSegmentation();
 
       void normalizeIds();
 
@@ -296,11 +286,11 @@ namespace ttk {
         return getSuperArc(arcId)->size();
       }
 
-      inline bool isJT(void) const {
+      inline bool isJT() const {
         return mt_data_.treeType == TreeType::Join;
       }
 
-      inline bool isST(void) const {
+      inline bool isST() const {
         return mt_data_.treeType == TreeType::Split;
       }
 
@@ -312,7 +302,7 @@ namespace ttk {
       inline void preconditionTriangulation(AbstractTriangulation *tri,
                                             const bool preproc = true) {
         if(tri && preproc) {
-          // propage through vertices (build)
+          // propagate through vertices (build)
           tri->preconditionVertexNeighbors();
         }
       }
@@ -351,8 +341,8 @@ namespace ttk {
       }
 
       template <typename scalarType>
-      inline void setVertexScalars(scalarType *vals) {
-        scalars_->values = (void *)vals;
+      inline void setVertexScalars(const scalarType *vals) {
+        scalars_->values = static_cast<void *>(const_cast<scalarType *>(vals));
       }
 
       // offset
@@ -360,7 +350,7 @@ namespace ttk {
        * @pre For this function to behave correctly in the absence of
        * the VTK wrapper, ttk::preconditionOrderArray() needs to be
        * called to fill the @p sos buffer prior to any
-       * computation (the VTK wrapper already includes a mecanism to
+       * computation (the VTK wrapper already includes a mechanism to
        * automatically generate such a preconditioned buffer).
        * @see examples/c++/main.cpp for an example use.
        */
@@ -370,7 +360,7 @@ namespace ttk {
 
       // arcs
 
-      inline idSuperArc getNumberOfSuperArcs(void) const {
+      inline idSuperArc getNumberOfSuperArcs() const {
         return mt_data_.superArcs->size();
       }
 
@@ -396,53 +386,53 @@ namespace ttk {
 
       // nodes
 
-      inline idNode getNumberOfNodes(void) const {
+      inline idNode getNumberOfNodes() const {
         return mt_data_.nodes->size();
       }
 
-      inline Node *getNode(idNode nodeId) {
+      inline Node *getNode(idNode nodeId) const {
         return &((*mt_data_.nodes)[nodeId]);
       }
 
       inline void setValence(const SimplexId v, const SimplexId val) {
-        (*mt_data_.valences)[v] = val;
+        mt_data_.valences[v] = val;
       }
 
       // leaves / root
 
-      inline idNode getNumberOfLeaves(void) const {
-        return mt_data_.leaves->size();
+      inline idNode getNumberOfLeaves() const {
+        return mt_data_.leaves.size();
       }
 
-      inline const std::vector<idNode> &getLeaves(void) const {
+      inline const std::vector<idNode> &getLeaves() const {
         // break encapsulation...
-        return (*mt_data_.leaves);
+        return mt_data_.leaves;
       }
 
       inline idNode getLeave(const idNode id) const {
 #ifndef TTK_ENABLE_KAMIKAZE
-        if(id > mt_data_.leaves->size()) {
+        if(id > mt_data_.leaves.size()) {
           this->printErr("getLeaves out of bounds: " + std::to_string(id));
-          return (*mt_data_.leaves)[0];
+          return mt_data_.leaves[0];
         }
 #endif
-        return (*mt_data_.leaves)[id];
+        return mt_data_.leaves[id];
       }
 
-      inline const std::vector<idNode> &getRoots(void) const {
+      inline const std::vector<idNode> &getRoots() const {
         // break encapsulation...
         return (*mt_data_.roots);
       }
 
       // vertices
 
-      inline SimplexId getNumberOfVertices(void) const {
+      inline SimplexId getNumberOfVertices() const {
         return scalars_->size;
       }
 
       // vert2tree
 
-      inline void setVert2Tree(decltype(mt_data_.vert2tree) const vect2tree) {
+      inline void setVert2Tree(decltype(mt_data_.vert2tree) const &vect2tree) {
         mt_data_.vert2tree = vect2tree;
       }
 
@@ -453,15 +443,15 @@ namespace ttk {
       // test vertex correpondance
 
       inline bool isCorrespondingArc(const SimplexId val) const {
-        return !isCorrespondingNull(val) && (*mt_data_.vert2tree)[val] >= 0;
+        return !isCorrespondingNull(val) && mt_data_.vert2tree[val] >= 0;
       }
 
       inline bool isCorrespondingNode(const SimplexId val) const {
-        return (*mt_data_.vert2tree)[val] < 0;
+        return mt_data_.vert2tree[val] < 0;
       }
 
       inline bool isCorrespondingNull(const SimplexId val) const {
-        return (*mt_data_.vert2tree)[val] == nullCorresp;
+        return mt_data_.vert2tree[val] == nullCorresp;
       }
 
       // Get vertex info
@@ -471,7 +461,7 @@ namespace ttk {
         if(!isCorrespondingNode(val)) {
           this->printErr("getCorrespondingNode, Vertex: " + std::to_string(val)
                          + " is not a node: "
-                         + std::to_string((*mt_data_.vert2tree)[val]));
+                         + std::to_string(mt_data_.vert2tree[val]));
         }
 #endif
         return corr2idNode(val);
@@ -480,15 +470,15 @@ namespace ttk {
       inline idSuperArc getCorrespondingSuperArcId(const SimplexId val) const {
 #ifndef TTK_ENABLE_KAMIKAZE
         if(!isCorrespondingArc(val)) {
-          this->printErr("getCorrespondingSuperArcId, Vertex: "
-                         + std::to_string(val) + " is not on an arc: "
-                         + std::to_string((*mt_data_.vert2tree)[val]));
+          this->printErr(
+            "getCorrespondingSuperArcId, Vertex: " + std::to_string(val)
+            + " is not on an arc: " + std::to_string(mt_data_.vert2tree[val]));
         }
 #endif
-        return (*mt_data_.vert2tree)[val];
+        return mt_data_.vert2tree[val];
       }
 
-      // Get corresponding elemnt
+      // Get corresponding element
 
       inline SuperArc *vertex2SuperArc(const SimplexId vert) {
         return &((*mt_data_.superArcs)[getCorrespondingSuperArcId(vert)]);
@@ -502,12 +492,12 @@ namespace ttk {
 
       inline void updateCorrespondingArc(const SimplexId vert,
                                          const idSuperArc arc) {
-        (*mt_data_.vert2tree)[vert] = arc;
+        mt_data_.vert2tree[vert] = arc;
       }
 
       inline void updateCorrespondingNode(const SimplexId vert,
                                           const idNode node) {
-        (*mt_data_.vert2tree)[vert] = idNode2corr(node);
+        mt_data_.vert2tree[vert] = idNode2corr(node);
       }
 
       inline idCorresp idNode2corr(const idNode id) const {
@@ -516,7 +506,7 @@ namespace ttk {
       }
 
       inline idNode corr2idNode(const idCorresp &corr) const {
-        return static_cast<idNode>(-((*mt_data_.vert2tree)[corr] + 1));
+        return static_cast<idNode>(-(mt_data_.vert2tree[corr] + 1));
       }
 
       // --------------------------------
@@ -535,6 +525,23 @@ namespace ttk {
       std::vector<idNode> sortedNodes(const bool parallel = false);
 
       void sortLeaves(const bool parallel = false);
+
+      /**
+       * @brief Sort tree nodes according to vertex order
+       *
+       * The vertex order is the same for Join Trees and Split Trees:
+       * minima first, maxima last.
+       */
+      void sortNodes();
+
+      /**
+       * @brief Sort tree arcs
+       *
+       * Arcs are sorted according to the lexicographic order (down
+       * node order, up node order). The node order is the one used in
+       * @ref sortNodes.
+       */
+      void sortArcs();
 
       idNode makeNode(SimplexId vertexId, SimplexId linked = nullVertex);
 
@@ -566,18 +573,18 @@ namespace ttk {
       // Operators : clone/ move & print
       // ---------------------------
 
-      FTMTree_MT *clone() const;
+      std::shared_ptr<FTMTree_MT> clone() const;
 
-      void move(FTMTree_MT *mt);
+      void move(FTMTree_MT &mt);
 
       // Print
       std::string printArc(idSuperArc a);
 
       std::string printNode(idNode n);
 
-      void printTree2(void);
+      void printTree2();
 
-      void printParams(void) const;
+      void printParams() const;
 
       int printTime(Timer &t,
                     const std::string &s,
@@ -592,117 +599,149 @@ namespace ttk {
       // --------------------
       // Is
       // --------------------
-      bool isNodeOriginDefined(idNode nodeId);
+      bool isNodeOriginDefined(idNode nodeId) const;
 
-      bool isRoot(idNode nodeId);
+      bool isRoot(idNode nodeId) const;
 
-      bool isLeaf(idNode nodeId);
+      bool isLeaf(idNode nodeId) const;
 
-      bool isNodeAlone(idNode nodeId);
+      bool isNodeAlone(idNode nodeId) const;
 
-      bool isFullMerge();
+      bool isFullMerge() const;
 
-      bool isBranchOrigin(idNode nodeId);
-
-      template <class dataType>
-      bool isJoinTree();
+      bool isBranchOrigin(idNode nodeId) const;
 
       template <class dataType>
-      bool isImportantPair(idNode nodeId, double threshold);
+      bool isJoinTree() const;
 
-      bool isNodeMerged(idNode nodeId);
+      template <class dataType>
+      bool isImportantPair(idNode nodeId,
+                           double threshold,
+                           std::vector<double> &excludeLower,
+                           std::vector<double> &excludeHigher) const;
 
-      bool isNodeIdInconsistent(idNode nodeId);
+      template <class dataType>
+      bool isImportantPair(idNode nodeId, double threshold) const;
 
-      bool isThereOnlyOnePersistencePair();
+      bool isNodeMerged(idNode nodeId) const;
+
+      bool isNodeIdInconsistent(idNode nodeId) const;
+
+      bool isThereOnlyOnePersistencePair() const;
 
       // Do not normalize node is if root or son of a merged root
-      bool notNeedToNormalize(idNode nodeId);
+      bool notNeedToNormalize(idNode nodeId) const;
 
-      bool isMultiPersPair(idNode nodeId);
-
-      template <class dataType>
-      bool isParentInconsistent(ftm::idNode nodeId);
+      bool isMultiPersPair(idNode nodeId) const;
 
       template <class dataType>
-      bool verifyBranchDecompositionInconsistency();
+      bool isParentInconsistent(ftm::idNode nodeId) const;
+
+      template <class dataType>
+      bool verifyBranchDecompositionInconsistency() const;
 
       // --------------------
       // Get
       // --------------------
-      idNode getRoot();
+      idNode getRoot() const;
 
-      idNode getParentSafe(idNode nodeId);
+      idNode getParentSafe(idNode nodeId) const;
 
-      void getChildren(idNode nodeId, std::vector<idNode> &res);
+      void getChildren(idNode nodeId, std::vector<idNode> &res) const;
 
-      void getLeavesFromTree(std::vector<idNode> &res);
+      void getLeavesFromTree(std::vector<idNode> &res) const;
 
-      int getNumberOfLeavesFromTree();
+      int getNumberOfLeavesFromTree() const;
 
-      int getNumberOfNodeAlone();
+      int getNumberOfNodeAlone() const;
 
-      int getRealNumberOfNodes();
+      int getRealNumberOfNodes() const;
+
+      template <class dataType>
+      idNode getMergedRootOrigin() const;
 
       void getBranchOriginsFromThisBranch(
-        idNode node, std::tuple<std::vector<idNode>, std::vector<idNode>> &res);
+        idNode node,
+        std::tuple<std::vector<idNode>, std::vector<idNode>> &res) const;
+
+      void
+        getTreeBranching(std::vector<idNode> &branching,
+                         std::vector<int> &branchingID,
+                         std::vector<std::vector<idNode>> &nodeBranching) const;
 
       void getTreeBranching(std::vector<idNode> &branching,
-                            std::vector<int> &branchingID,
-                            std::vector<std::vector<idNode>> &nodeBranching);
+                            std::vector<int> &branchingID) const;
 
-      void getTreeBranching(std::vector<idNode> &branching,
-                            std::vector<int> &branchingID);
+      void getAllRoots(std::vector<idNode> &res) const;
 
-      void getAllRoots(std::vector<idNode> &res);
+      int getNumberOfRoot() const;
 
-      int getNumberOfRoot();
+      int getNumberOfChildren(idNode nodeId) const;
 
-      int getNumberOfChildren(idNode nodeId);
+      int getTreeDepth() const;
 
-      int getTreeDepth();
+      int getNodeLevel(idNode nodeId) const;
 
-      int getNodeLevel(idNode nodeId);
+      void getAllNodeLevel(std::vector<int> &res) const;
 
-      void getAllNodeLevel(std::vector<int> &res);
-
-      void getLevelToNode(std::vector<std::vector<idNode>> &res);
+      void getLevelToNode(std::vector<std::vector<idNode>> &res) const;
 
       void getBranchSubtree(std::vector<idNode> &branching,
                             idNode branchRoot,
-                            std::vector<idNode> &res);
+                            std::vector<idNode> &res) const;
 
       template <class dataType>
-      idNode getLowestNode(idNode nodeStart);
+      idNode getLowestNode(idNode nodeStart) const;
 
       // --------------------
       // Persistence
       // --------------------
       template <class dataType>
-      std::tuple<dataType, dataType> getBirthDeath(idNode nodeId);
+      std::tuple<dataType, dataType> getBirthDeathFromIds(idNode nodeId1,
+                                                          idNode nodeId2) const;
 
       template <class dataType>
-      dataType getBirth(idNode nodeId);
+      std::tuple<dataType, dataType>
+        getBirthDeathNodeFromIds(idNode nodeId1, idNode nodeId2) const;
 
       template <class dataType>
-      dataType getNodePersistence(idNode nodeId);
+      std::tuple<dataType, dataType> getBirthDeath(idNode nodeId) const;
 
       template <class dataType>
-      dataType getMaximumPersistence();
+      std::tuple<ftm::idNode, ftm::idNode>
+        getBirthDeathNode(idNode nodeId) const;
 
       template <class dataType>
-      dataType getSecondMaximumPersistence();
+      std::tuple<dataType, dataType> getMergedRootBirthDeath() const;
+
+      template <class dataType>
+      std::tuple<ftm::idNode, ftm::idNode> getMergedRootBirthDeathNode() const;
+
+      template <class dataType>
+      dataType getBirth(idNode nodeId) const;
+
+      template <class dataType>
+      dataType getNodePersistence(idNode nodeId) const;
+
+      template <class dataType>
+      dataType getMaximumPersistence() const;
+
+      template <class dataType>
+      ftm::idNode getSecondMaximumPersistenceNode() const;
+
+      template <class dataType>
+      dataType getSecondMaximumPersistence() const;
 
       template <class dataType>
       void getPersistencePairsFromTree(
         std::vector<std::tuple<ftm::idNode, ftm::idNode, dataType>> &pairs,
-        bool useBD);
+        bool useBD) const;
 
       template <class dataType>
-      std::vector<ftm::idNode> getMultiPersOrigins(bool useBD);
+      std::vector<ftm::idNode> getMultiPersOrigins(bool useBD) const;
 
       void getMultiPersOriginsVectorFromTree(
-        std::vector<std::vector<idNode>> &res);
+        std::vector<std::vector<idNode>> &res) const;
 
       // --------------------
       // Set
@@ -726,34 +765,41 @@ namespace ttk {
       // --------------------
       // Create/Delete/Modify Tree
       // --------------------
-      void copyMergeTreeStructure(FTMTree_MT *tree);
+      void copyMergeTreeStructure(const FTMTree_MT *tree);
 
       // --------------------
       // Utils
       // --------------------
-      void printNodeSS(idNode node, std::stringstream &ss);
+      void printNodeSS(idNode node, std::stringstream &ss) const;
 
       template <class dataType>
-      void printNode2(idNode nodeId);
-
-      std::stringstream printTree(bool doPrint = true);
-
-      void printTreeStats();
+      std::stringstream printNode2(idNode nodeId, bool doPrint = true) const;
 
       template <class dataType>
-      void printTreeScalars(bool printNodeAlone = true);
+      std::stringstream printMergedRoot(bool doPrint = true) const;
+
+      std::stringstream printSubTree(idNode subRoot) const;
+
+      std::stringstream printTree(bool doPrint = true) const;
+
+      std::stringstream printTreeStats(bool doPrint = true) const;
+
+      template <class dataType>
+      std::stringstream printTreeScalars(bool printNodeAlone = true,
+                                         bool doPrint = true) const;
 
       template <class dataType>
       std::stringstream printPairsFromTree(bool useBD = false,
                                            bool printPairs = true,
-                                           bool doPrint = true);
+                                           bool doPrint = true) const;
 
       std::stringstream printMultiPersOriginsVectorFromTree(bool doPrint
-                                                            = true);
+                                                            = true) const;
 
       template <class dataType>
-      void printMultiPersPairsFromTree(bool useBD = false,
-                                       bool printPairs = true);
+      std::stringstream printMultiPersPairsFromTree(bool useBD = false,
+                                                    bool printPairs = true,
+                                                    bool doPrint = true) const;
 
       // ----------------------------------------
       // End of utils functions
@@ -826,27 +872,25 @@ namespace ttk {
       }
 
       template <typename type>
-      void createVector(std::vector<type> *&ptr) {
+      void createVector(std::vector<type> &vec) {
+        vec.clear();
+      }
+
+      template <typename type>
+      void createAtomicVector(std::shared_ptr<FTMAtomicVector<type>> &ptr) {
         if(!ptr)
-          ptr = new std::vector<type>;
+          ptr = std::make_shared<FTMAtomicVector<type>>();
         ptr->clear();
       }
 
       template <typename type>
-      void createAtomicVector(FTMAtomicVector<type> *&ptr) {
-        if(!ptr)
-          ptr = new FTMAtomicVector<type>;
-        ptr->clear();
-      }
-
-      template <typename type>
-      void initVector(std::vector<type> *&vect, const type val) {
-        auto s = vect->size();
+      void initVector(std::vector<type> &vect, const type val) {
+        auto s = vect.size();
 #ifdef TTK_ENABLE_OPENMP
 #pragma omp parallel for num_threads(threadNumber_) schedule(static)
 #endif
         for(typename std::vector<type>::size_type i = 0; i < s; i++) {
-          (*vect)[i] = val;
+          vect[i] = val;
         }
       }
     }; // end of FTMTree_MT class
@@ -856,64 +900,68 @@ namespace ttk {
 
     template <typename dataType>
     struct MergeTree {
-      ftm::Scalars scalars;
-      std::vector<dataType> scalarsValues;
-      ftm::Params params;
+      std::shared_ptr<ftm::Scalars> scalars;
+      std::shared_ptr<std::vector<dataType>> scalarsValues;
+      std::shared_ptr<ftm::Params> params;
       ftm::FTMTree_MT tree;
 
-      ftm::Scalars emptyScalars() {
-        ftm::Scalars scalarsT;
-        scalarsT.size = 0;
-        dataType *scalarsValuesT = nullptr;
-        scalarsT.values = (void *)scalarsValuesT;
+      std::shared_ptr<ftm::Scalars> emptyScalars() {
+        auto scalarsT = std::make_shared<ftm::Scalars>();
+        scalarsT->size = 0;
+        scalarsT->values = nullptr;
         return scalarsT;
       }
 
-      ftm::Params emptyParams() {
-        ftm::Params paramsT;
-        paramsT.treeType = ftm::Join_Split;
+      std::shared_ptr<ftm::Params> emptyParams() {
+        auto paramsT = std::make_shared<ftm::Params>();
+        paramsT->treeType = ftm::Join_Split;
         return paramsT;
       }
 
       MergeTree() : MergeTree(emptyScalars(), emptyParams()) {
       }
 
-      MergeTree(const ftm::Scalars &scalarsT, ftm::Params paramsT)
+      template <typename T, typename U>
+      MergeTree(const T scalarsT, U paramsT)
         : scalars(scalarsT), params(paramsT),
-          tree(&params, &scalars, params.treeType) {
+          tree(paramsT, scalarsT, params->treeType) {
         tree.makeAlloc();
+        scalarsValues = std::make_shared<std::vector<dataType>>();
         for(unsigned int i = 0; i < tree.getNumberOfNodes(); ++i)
-          scalarsValues.push_back(tree.getValue<dataType>(i));
-        scalars.values = (void *)(scalarsValues.data());
+          scalarsValues->push_back(tree.getValue<dataType>(i));
+        scalars->values = (void *)(scalarsValues->data());
       }
 
-      MergeTree(const ftm::Scalars &scalarsT,
-                std::vector<dataType> scalarValuesT,
-                ftm::Params paramsT)
+      MergeTree(const std::shared_ptr<ftm::Scalars> &scalarsT,
+                const std::shared_ptr<std::vector<dataType>> &scalarValuesT,
+                std::shared_ptr<ftm::Params> &paramsT)
         : scalars(scalarsT), scalarsValues(scalarValuesT), params(paramsT),
-          tree(&params, &scalars, params.treeType) {
+          tree(paramsT, scalarsT, params->treeType) {
         tree.makeAlloc();
-        scalars.values = (void *)(scalarsValues.data());
+        scalars->values = (void *)(scalarsValues->data());
       }
 
       void copy(const MergeTree<dataType> &mt) {
         // Copy scalars
-        scalars.size = mt.scalars.size;
-        scalarsValues = std::vector<dataType>(mt.scalarsValues);
-        scalars.values = (void *)(scalarsValues.data());
+        scalars = std::make_shared<ftm::Scalars>();
+        scalars->size = mt.scalars->size;
+        scalarsValues = mt.scalarsValues;
+        scalars->values = (void *)(scalarsValues->data());
 
         // Copy params
-        params.treeType = mt.params.treeType;
+        params = std::make_shared<ftm::Params>();
+        params->treeType = mt.params->treeType;
 
         // Copy tree
-        tree.~FTMTree_MT();
+        tree.clear();
+        tree.setParamsScalars(params, scalars);
         tree.makeAlloc();
         tree.copyMergeTreeStructure(const_cast<FTMTree_MT *>(&(mt.tree)));
       }
 
       MergeTree(const MergeTree<dataType> &mt)
         : scalars(mt.scalars), scalarsValues(mt.scalarsValues),
-          params(mt.params), tree(&params, &scalars, params.treeType) {
+          params(mt.params), tree(params, scalars, params->treeType) {
         copy(mt);
       }
 
@@ -930,5 +978,3 @@ namespace ttk {
 
 #include <FTMTreeUtils_Template.h>
 #include <FTMTree_MT_Template.h>
-
-#endif /* end of include guard: MERGETREE_H */

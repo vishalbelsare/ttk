@@ -6,9 +6,9 @@
 /// \brief TTK VTK-filter that computes the overlap between labeled
 /// vtkPointSets.
 ///
-/// VTK wrapping code for the @TrackingFromOverlap package.
+/// VTK wrapping code for the ttk::TrackingFromOverlap package.
 ///
-/// This filter identifies and tracks labled vtkPointSets across time (and
+/// This filter identifies and tracks labeled vtkPointSets across time (and
 /// optionally levels) based on spatial overlap, where two points overlap iff
 /// their corresponding coordinates are equal. This filter can be executed
 /// iteratively and can generate nested tracking graphs.
@@ -32,7 +32,12 @@
 /// holds all timesteps of level \b j. \param Output A \b vtkUnstructuredGrid
 /// that represents the (nested) tracking graph embedded in the spatial domain.
 ///
-/// sa ttk::TrackingFromOverlap
+/// \sa ttk::TrackingFromOverlap
+///
+/// \b Online \b examples: \n
+///   - <a
+///   href="https://topology-tool-kit.github.io/examples/nestedTrackingFromOverlap/">Nested
+///   Tracking from Overlap example</a> \n
 
 #pragma once
 

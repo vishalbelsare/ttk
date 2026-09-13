@@ -2,16 +2,10 @@
 /// \class ttk::AssignmentMunkres
 /// \author Maxime Soler <soler.maxime@total.com>
 
-#ifndef _ASSIGNMENTMUNKRES_H
-#define _ASSIGNMENTMUNKRES_H
-
-#include <Debug.h>
-
-#include "AssignmentSolver.h"
-
 #pragma once
 
-#include <Debug.h>
+#include <AssignmentSolver.h>
+
 #include <cmath>
 #include <iostream>
 #include <limits>
@@ -27,17 +21,17 @@ namespace ttk {
       this->setDebugMsgPrefix("AssignmentMunkres");
     }
 
-    ~AssignmentMunkres() = default;
+    ~AssignmentMunkres() override = default;
 
-    int run(std::vector<asgnMatchingTuple> &matchings);
+    int run(std::vector<MatchingType> &matchings) override;
 
-    inline void clear() {
+    inline void clear() override {
       AssignmentSolver<dataType>::clear();
       pathCount = 0;
       createdZeros.clear();
     }
 
-    inline int setInput(std::vector<std::vector<dataType>> &C_) {
+    inline int setInput(std::vector<std::vector<dataType>> &C_) override {
       AssignmentSolver<dataType>::setInput(C_);
 
       createdZeros.clear();
@@ -57,7 +51,7 @@ namespace ttk {
       for(int row = 0; row < this->rowSize; ++row)
         M[row].resize(c);
 
-      int nbPaths = 1 + this->colSize + this->rowSize;
+      const int nbPaths = 1 + this->colSize + this->rowSize;
       path.resize((unsigned long)nbPaths);
       for(int p = 0; p < nbPaths; ++p)
         path[p].resize(2);
@@ -135,7 +129,7 @@ namespace ttk {
 
     int stepSeven(int &step);
 
-    int affect(std::vector<asgnMatchingTuple> &matchings,
+    int affect(std::vector<MatchingType> &matchings,
                const std::vector<std::vector<dataType>> &C);
 
     int computeAffectationCost(const std::vector<std::vector<dataType>> &C);
@@ -158,8 +152,8 @@ namespace ttk {
 
     inline int copyInputMatrix(std::vector<std::vector<dataType>> &saveInput) {
       auto C = AssignmentSolver<dataType>::getCostMatrixPointer();
-      int rS = this->rowSize;
-      int cS = this->colSize;
+      const int rS = this->rowSize;
+      const int cS = this->colSize;
 
       for(int r = 0; r < rS; ++r)
         for(int c = 0; c < cS; ++c)
@@ -169,9 +163,6 @@ namespace ttk {
     }
   };
 
-// Include in namespace ttk
-#include <AssignmentMunkresImpl.h>
-
 } // namespace ttk
 
-#endif
+#include <AssignmentMunkresImpl.h>

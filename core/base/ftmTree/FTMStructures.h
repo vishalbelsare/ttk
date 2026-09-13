@@ -82,7 +82,7 @@ namespace ttk {
         vertex = v;
       }
 
-      SimplexId getNextMinVertex(void) {
+      SimplexId getNextMinVertex() {
         vertex = propagation.top();
         propagation.pop();
         return vertex;
@@ -123,7 +123,7 @@ namespace ttk {
       }
 
       void addArc(const idSuperArc arc) {
-        idSuperArc thisArc = openedArcs.getNext();
+        idSuperArc const thisArc = openedArcs.getNext();
         openedArcs[thisArc] = arc;
       }
 

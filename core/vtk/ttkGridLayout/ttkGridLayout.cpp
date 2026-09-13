@@ -21,8 +21,7 @@ ttkGridLayout::ttkGridLayout() {
   this->SetNumberOfOutputPorts(1);
 }
 
-ttkGridLayout::~ttkGridLayout() {
-}
+ttkGridLayout::~ttkGridLayout() = default;
 
 int ttkGridLayout::FillInputPortInformation(int port, vtkInformation *info) {
   if(port == 0)
@@ -68,13 +67,13 @@ int ttkGridLayout::TranslateObject(vtkDataObject *input,
   auto inputAsID = vtkImageData::SafeDownCast(input);
 
   if(inputMB) {
-    size_t n = inputMB->GetNumberOfBlocks();
+    size_t const n = inputMB->GetNumberOfBlocks();
     for(size_t i = 0; i < n; i++)
       if(!this->TranslateObject(inputMB->GetBlock(i), colAxis, rowAxis, dw, dh))
         return 0;
 
   } else if(inputAsPS) {
-    size_t nCoords = inputAsPS->GetNumberOfPoints() * 3;
+    size_t const nCoords = inputAsPS->GetNumberOfPoints() * 3;
     auto points = inputAsPS->GetPoints();
     auto pointCoords = (float *)points->GetVoidPointer(0);
     for(size_t i = 0; i < nCoords; i += 3) {
@@ -104,15 +103,15 @@ int ttkGridLayout::RequestData(vtkInformation *ttkNotUsed(request),
   auto outputMB = vtkMultiBlockDataSet::GetData(outputVector);
 
   // Determine Grid Axis
-  int colAxis = this->GetColAxis();
-  int rowAxis = this->GetRowAxis();
+  int const colAxis = this->GetColAxis();
+  int const rowAxis = this->GetRowAxis();
 
   // Compute width and height of grid cells
   double bounds[6];
   double maxWidth = 0;
   double maxHeight = 0;
 
-  size_t nBlocks = inputMB->GetNumberOfBlocks();
+  size_t const nBlocks = inputMB->GetNumberOfBlocks();
 
   this->printMsg("Translating " + std::to_string(nBlocks) + " object(s)", 0,
                  ttk::debug::LineMode::REPLACE);
@@ -132,8 +131,8 @@ int ttkGridLayout::RequestData(vtkInformation *ttkNotUsed(request),
       return 0;
     }
 
-    double blockWidth = bounds[colAxis * 2 + 1] - bounds[colAxis * 2];
-    double blockHeight = bounds[rowAxis * 2 + 1] - bounds[rowAxis * 2];
+    double const blockWidth = bounds[colAxis * 2 + 1] - bounds[colAxis * 2];
+    double const blockHeight = bounds[rowAxis * 2 + 1] - bounds[rowAxis * 2];
     if(maxWidth < blockWidth)
       maxWidth = blockWidth;
     if(maxHeight < blockHeight)
@@ -148,7 +147,7 @@ int ttkGridLayout::RequestData(vtkInformation *ttkNotUsed(request),
   const size_t nRows
     = this->GetNumberOfRows() < 1 ? 0 : (size_t)this->GetNumberOfRows();
   const size_t nColumns
-    = nRows == 0 ? ceil(sqrt(nBlocks)) : ceil(nBlocks / nRows);
+    = nRows == 0 ? std::ceil(std::sqrt(nBlocks)) : std::ceil(nBlocks / nRows);
 
   for(size_t i = 0; i < nBlocks; i++) {
     // get block
@@ -157,7 +156,7 @@ int ttkGridLayout::RequestData(vtkInformation *ttkNotUsed(request),
     auto outBlock = vtkSmartPointer<vtkDataObject>::Take(block->NewInstance());
     this->CopyObject(outBlock, block);
 
-    const size_t row = floor(i / nColumns);
+    const size_t row = std::floor(i / nColumns);
     const size_t col = i % nColumns;
 
     if(!this->TranslateObject(

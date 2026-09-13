@@ -15,23 +15,42 @@
                           short_help="TTK MergeTreeClustering plugin that compute distance, geodesics and barycenters between merge trees.">
 This filter allows to compute distances, geodesics, barycenters and clusters of merge trees.
 
-Two backends are available:
+Four backends are available:
 
-- The Wasserstein Distance:
+- The Wasserstein Distance.
 Related publication:
 'Wasserstein Distances, Geodesics and Barycenters of Merge Trees'
 Mathieu Pont, Jules Vidal, Julie Delon, Julien Tierny.
 Proc. of IEEE VIS 2021.
 IEEE Transactions on Visualization and Computer Graphics, 2021
 
-- The Edit Distance:
+- The Edit Distance.
 Related publication:
 'Edit distance between merge trees.'
 R. Sridharamurthy, T. B. Masood, A. Kamakshidasan, and V. Natarajan.
 IEEE Transactions on Visualization and Computer Graphics, 2018.
 
-Only the first backend allows to compute geodesics, barycenters and clusters of merge trees. The second one can only compute distances.
-These backends are different through 3 parameters:
+- The Branch-Decomposition Edit Distance.
+Related publication:
+"Branch Decomposition-Independent Edit Distances for Merge Trees."
+Florian Wetzels, Heike Leitte, and Christoph Garth.
+Computer Graphics Forum, 2022.
+
+- The Path-Mapping Distance.
+Related publications:
+"A Deformation-based Edit Distance for Merge Trees"
+Florian Wetzels, Christoph Garth.
+TopoInVis 2022.
+and
+'Merge Tree Geodesics and Barycenters with Path Mappings'
+F. Wetzels, M. Pont, J. Tierny and C. Garth.
+Proc. of IEEE VIS 2023.
+IEEE Transactions on Visualization and Computer Graphics, 2024
+
+Only the first and last backend allows to compute geodesics, barycenters and clusters of merge trees. 
+The other ones can only compute distances, therefore, the "ComputeBarycenter" will always be false for these backends, whatever its old value.
+
+The first two backends are different through 3 parameters:
 
                Parameters | Wasserstein |  Edit |
 --------------------------|-------------|-------|
@@ -41,13 +60,21 @@ These backends are different through 3 parameters:
 
 These parameters can be configured manually by selecting the Custom backend.
 
-The input of this filter is a vtkMultiBlockDataset. Each block is itself a vtkMultiBlockDataset containing the outputs of the FTMTree filter (the segmentation output is optionnal).
+The input of this filter is a vtkMultiBlockDataset. Each block is itself a vtkMultiBlockDataset containing the outputs of the FTMTree filter (the segmentation output is optional).
 
-When using the clustering algorithm, this filter allows to use the join tree and the split tree at the same time (each input data and each centroid is considered to be two objects: its join and split tree, the distance between data is the sum of the distance between their join tree and the ditance between their split tree). The first input should containing all the join or split tree and the second input should contains all the trees of the other type.
+When using the clustering algorithm, this filter allows to use the join tree and the split tree at the same time (each input data and each centroid is considered to be two objects: its join and split tree, the distance between data is the sum of the distance between their join tree and the distance between their split tree). The first input should containing all the join or split tree and the second input should contains all the trees of the other type.
 
 Online examples:
 
 - https://topology-tool-kit.github.io/examples/mergeTreeClustering/
+
+- https://topology-tool-kit.github.io/examples/mergeTreeFeatureTracking/
+
+- https://topology-tool-kit.github.io/examples/mergeTreePGA/
+
+- https://topology-tool-kit.github.io/examples/mergeTreeWAE/
+
+
            </Documentation>
 
             <!-- INPUT -->
@@ -86,7 +113,8 @@ Online examples:
                     <Property name="Input" function="FieldDataSelection" />
                   </InputArrayDomain>
                   <Documentation>
-                    This input is used for the clustering of merge trees that can use join and split tree together. Pass as input either join or split trees in the first input and the other type of trees in the second input.
+                    If input are merge trees, then this input can be used to process join and split trees together (only for clustering). Pass as input either join or split trees in the first input and the other type of trees in the second input.
+                    If input are persistence diagrams, then this has no effect to use this input.
                   </Documentation>
                 </InputProperty>
 
@@ -103,26 +131,32 @@ Online examples:
                   <Hints>
                   <PropertyWidgetDecorator type="CompositeDecorator">
                     <Expression type="or">
-                      <Expression type="and">
+                      <Expression type="or">
                         <Expression type="and">
+                          <Expression type="and">
+                            <PropertyWidgetDecorator type="GenericDecorator"
+                                                    mode="visibility"
+                                                    property="BranchDecomposition"
+                                                    value="1" />
+                            <PropertyWidgetDecorator type="GenericDecorator"
+                                                    mode="visibility"
+                                                    property="Backend"
+                                                    value="2" />
+                          </Expression>
                           <PropertyWidgetDecorator type="GenericDecorator"
                                                   mode="visibility"
-                                                  property="BranchDecomposition"
-                                                  value="1" />
-                          <PropertyWidgetDecorator type="GenericDecorator"
-                                                  mode="visibility"
-                                                  property="Backend"
-                                                  value="2" />
+                                                  property="KeepSubtree"
+                                                  value="0" />
                         </Expression>
                         <PropertyWidgetDecorator type="GenericDecorator"
                                                 mode="visibility"
-                                                property="KeepSubtree"
+                                                property="Backend"
                                                 value="0" />
                       </Expression>
                       <PropertyWidgetDecorator type="GenericDecorator"
-                                              mode="visibility"
-                                              property="Backend"
-                                              value="0" />
+                                                  mode="visibility"
+                                                  property="Backend"
+                                                  value="4" />
                     </Expression>
                   </PropertyWidgetDecorator>
                   </Hints>
@@ -141,17 +175,23 @@ Online examples:
                   <Hints>
                   <PropertyWidgetDecorator type="CompositeDecorator">
                     <Expression type="and">
-                      <Expression type="and">
+                      <Expression type="or">
                         <Expression type="or">
                           <Expression type="and">
+                            <Expression type="and">
+                              <PropertyWidgetDecorator type="GenericDecorator"
+                                                      mode="visibility"
+                                                      property="BranchDecomposition"
+                                                      value="1" />
+                              <PropertyWidgetDecorator type="GenericDecorator"
+                                                      mode="visibility"
+                                                      property="Backend"
+                                                      value="2" />
+                            </Expression>
                             <PropertyWidgetDecorator type="GenericDecorator"
                                                     mode="visibility"
-                                                    property="BranchDecomposition"
-                                                    value="1" />
-                            <PropertyWidgetDecorator type="GenericDecorator"
-                                                    mode="visibility"
-                                                    property="Backend"
-                                                    value="2" />
+                                                    property="KeepSubtree"
+                                                    value="0" />
                           </Expression>
                           <PropertyWidgetDecorator type="GenericDecorator"
                                                   mode="visibility"
@@ -159,9 +199,9 @@ Online examples:
                                                   value="0" />
                         </Expression>
                         <PropertyWidgetDecorator type="GenericDecorator"
-                                                mode="visibility"
-                                                property="KeepSubtree"
-                                                value="0" />
+                                                    mode="visibility"
+                                                    property="Backend"
+                                                    value="4" />
                       </Expression>
                       <PropertyWidgetDecorator type="GenericDecorator"
                                               mode="visibility"
@@ -176,16 +216,216 @@ Online examples:
                 </IntVectorProperty>
 
                 <IntVectorProperty
-                name="Deterministic"
-                command="SetDeterministic"
-                label="Deterministic"
+                name="UseMedianBarycenter"
+                command="SetUseMedianBarycenter"
+                label="Use median barycenter method"
                 number_of_elements="1"
-                  default_values="0">
+                default_values="0">
+                  <Hints>
+                  <PropertyWidgetDecorator type="CompositeDecorator">
+                    <Expression type="and">
+                      <PropertyWidgetDecorator type="GenericDecorator"
+                                                mode="visibility"
+                                                property="Backend"
+                                                value="4" />
+                      <PropertyWidgetDecorator type="GenericDecorator"
+                                                mode="visibility"
+                                                property="ComputeBarycenter"
+                                                value="1" />
+                    </Expression>
+                  </PropertyWidgetDecorator>
+                  </Hints>
+                  <Documentation>
+                    Use median update procedure instead of average.
+                  </Documentation>
+                  <BooleanDomain name="bool"/>
+                </IntVectorProperty>
+
+                <IntVectorProperty
+                name="UseFixedInit"
+                command="SetUseFixedInit"
+                label="Use fixed initial candidate"
+                number_of_elements="1"
+                default_values="0">
+                  <Hints>
+                  <PropertyWidgetDecorator type="CompositeDecorator">
+                    <Expression type="and">
+                      <Expression type="or">
+                        <Expression type="or">
+                          <Expression type="and">
+                            <Expression type="and">
+                              <PropertyWidgetDecorator type="GenericDecorator"
+                                                      mode="visibility"
+                                                      property="BranchDecomposition"
+                                                      value="1" />
+                              <PropertyWidgetDecorator type="GenericDecorator"
+                                                      mode="visibility"
+                                                      property="Backend"
+                                                      value="2" />
+                            </Expression>
+                            <PropertyWidgetDecorator type="GenericDecorator"
+                                                    mode="visibility"
+                                                    property="KeepSubtree"
+                                                    value="0" />
+                          </Expression>
+                          <PropertyWidgetDecorator type="GenericDecorator"
+                                                  mode="visibility"
+                                                  property="Backend"
+                                                  value="0" />
+                        </Expression>
+                        <PropertyWidgetDecorator type="GenericDecorator"
+                                                    mode="visibility"
+                                                    property="Backend"
+                                                    value="4" />
+                      </Expression>
+                      <PropertyWidgetDecorator type="GenericDecorator"
+                                              mode="visibility"
+                                              property="ComputeBarycenter"
+                                              value="1" />
+                    </Expression>
+                  </PropertyWidgetDecorator>
+                  </Hints>
+                  <Documentation>
+                    Use fixed member for initial barycenter candidate.
+                  </Documentation>
+                  <BooleanDomain name="bool"/>
+                </IntVectorProperty>
+
+                <IntVectorProperty
+                name="FixedInitNumber"
+                command="SetFixedInitNumber"
+                label="Member for initial candidate"
+                number_of_elements="1"
+                default_values="0">
                   <Hints>
                   <PropertyWidgetDecorator type="CompositeDecorator">
                     <Expression type="and">
                       <Expression type="and">
                         <Expression type="or">
+                          <Expression type="or">
+                            <Expression type="and">
+                              <Expression type="and">
+                                <PropertyWidgetDecorator type="GenericDecorator"
+                                                        mode="visibility"
+                                                        property="BranchDecomposition"
+                                                        value="1" />
+                                <PropertyWidgetDecorator type="GenericDecorator"
+                                                        mode="visibility"
+                                                        property="Backend"
+                                                        value="2" />
+                              </Expression>
+                              <PropertyWidgetDecorator type="GenericDecorator"
+                                                      mode="visibility"
+                                                      property="KeepSubtree"
+                                                      value="0" />
+                            </Expression>
+                            <PropertyWidgetDecorator type="GenericDecorator"
+                                                    mode="visibility"
+                                                    property="Backend"
+                                                    value="0" />
+                          </Expression>
+                          <PropertyWidgetDecorator type="GenericDecorator"
+                                                      mode="visibility"
+                                                      property="Backend"
+                                                      value="4" />
+                        </Expression>
+                        <PropertyWidgetDecorator type="GenericDecorator"
+                                                mode="visibility"
+                                                property="ComputeBarycenter"
+                                                value="1" />
+                      </Expression>
+                      <PropertyWidgetDecorator type="GenericDecorator"
+                                              mode="visibility"
+                                              property="UseFixedInit"
+                                              value="1" />
+                    </Expression>
+                  </PropertyWidgetDecorator>
+                  </Hints>
+                  <Documentation>
+                    Member index for initial barycenter candidate.
+                  </Documentation>
+                </IntVectorProperty>
+
+                <!-- <IntVectorProperty
+                name="UseEarlyOut"
+                command="SetUseEarlyOut"
+                label="Stop when converged"
+                number_of_elements="1"
+                default_values="1">
+                  <Hints>
+                    <PropertyWidgetDecorator type="GenericDecorator"
+                                              mode="visibility"
+                                              property="ComputeBarycenter"
+                                              value="1" />
+                  </Hints>
+                  <Documentation>
+                    Stop barycenter iteration when convergence good enough.
+                  </Documentation>
+                  <BooleanDomain name="bool"/>
+                </IntVectorProperty> -->
+
+                <IntVectorProperty
+                name="IterationLimit"
+                command="SetIterationLimit"
+                label="Max Number of Iterations"
+                number_of_elements="1"
+                default_values="100"
+                panel_visibility="advanced">
+                  <Hints>
+                  <PropertyWidgetDecorator type="CompositeDecorator">
+                    <Expression type="and">
+                      <Expression type="or">
+                        <Expression type="or">
+                          <Expression type="and">
+                            <Expression type="and">
+                              <PropertyWidgetDecorator type="GenericDecorator"
+                                                      mode="visibility"
+                                                      property="BranchDecomposition"
+                                                      value="1" />
+                              <PropertyWidgetDecorator type="GenericDecorator"
+                                                      mode="visibility"
+                                                      property="Backend"
+                                                      value="2" />
+                            </Expression>
+                            <PropertyWidgetDecorator type="GenericDecorator"
+                                                    mode="visibility"
+                                                    property="KeepSubtree"
+                                                    value="0" />
+                          </Expression>
+                          <PropertyWidgetDecorator type="GenericDecorator"
+                                                  mode="visibility"
+                                                  property="Backend"
+                                                  value="0" />
+                        </Expression>
+                        <PropertyWidgetDecorator type="GenericDecorator"
+                                                    mode="visibility"
+                                                    property="Backend"
+                                                    value="4" />
+                      </Expression>
+                      <PropertyWidgetDecorator type="GenericDecorator"
+                                              mode="visibility"
+                                              property="ComputeBarycenter"
+                                              value="1" />
+                    </Expression>
+                  </PropertyWidgetDecorator>
+                  </Hints>
+                  <Documentation>
+                    Maximum number of iterations in barycenter computation.
+                  </Documentation>
+                </IntVectorProperty>
+
+                <DoubleVectorProperty
+                name="BarycenterSizeLimitPercent"
+                command="SetBarycenterSizeLimitPercent"
+                label="Barycenter Size Limit Percent"
+                number_of_elements="1"
+                default_values="0"
+                panel_visibility="advanced">
+                  <Hints>
+                  <PropertyWidgetDecorator type="CompositeDecorator">
+                    <Expression type="and">
+                      <Expression type="or">
+                        <Expression type="and">
                           <Expression type="and">
                             <PropertyWidgetDecorator type="GenericDecorator"
                                                     mode="visibility"
@@ -198,13 +438,63 @@ Online examples:
                           </Expression>
                           <PropertyWidgetDecorator type="GenericDecorator"
                                                   mode="visibility"
-                                                  property="Backend"
+                                                  property="KeepSubtree"
                                                   value="0" />
                         </Expression>
                         <PropertyWidgetDecorator type="GenericDecorator"
                                                 mode="visibility"
-                                                property="KeepSubtree"
+                                                property="Backend"
                                                 value="0" />
+                      </Expression>
+                      <PropertyWidgetDecorator type="GenericDecorator"
+                                              mode="visibility"
+                                              property="ComputeBarycenter"
+                                              value="1" />
+                    </Expression>
+                  </PropertyWidgetDecorator>
+                  </Hints>
+                  <Documentation>
+
+                  </Documentation>
+                  <DoubleRangeDomain name="range" min="0" max="100" />
+                </DoubleVectorProperty>
+
+                <IntVectorProperty
+                name="Deterministic"
+                command="SetDeterministic"
+                label="Deterministic"
+                number_of_elements="1"
+                  default_values="0">
+                  <Hints>
+                  <PropertyWidgetDecorator type="CompositeDecorator">
+                    <Expression type="and">
+                      <Expression type="or">
+                        <Expression type="or">
+                          <Expression type="and">
+                            <Expression type="and">
+                              <PropertyWidgetDecorator type="GenericDecorator"
+                                                      mode="visibility"
+                                                      property="BranchDecomposition"
+                                                      value="1" />
+                              <PropertyWidgetDecorator type="GenericDecorator"
+                                                      mode="visibility"
+                                                      property="Backend"
+                                                      value="2" />
+                            </Expression>
+                            <PropertyWidgetDecorator type="GenericDecorator"
+                                                    mode="visibility"
+                                                    property="KeepSubtree"
+                                                    value="0" />
+                          </Expression>
+                          <PropertyWidgetDecorator type="GenericDecorator"
+                                                  mode="visibility"
+                                                  property="Backend"
+                                                  value="0" />
+                        </Expression>
+                        <PropertyWidgetDecorator type="GenericDecorator"
+                                                    mode="visibility"
+                                                    property="Backend"
+                                                    value="4" />
                       </Expression>
                       <PropertyWidgetDecorator type="GenericDecorator"
                                               mode="visibility"
@@ -228,25 +518,6 @@ Online examples:
                 label="Alpha"
                 number_of_elements="1"
                 default_values="0.5"
-                panel_visibility="advanced">>
-                  <Hints>
-                  <PropertyWidgetDecorator type="GenericDecorator"
-                                           mode="visibility"
-                                           property="ComputeBarycenter"
-                                           value="1" />
-                  </Hints>
-                  <Documentation>
-                    Set the alpha coefficent of the first tree. Use to work when there is only 2 input trees, the alpha of the second input will be (1-alpha).
-                  </Documentation>
-                  <DoubleRangeDomain name="range" min="0" max="1" />
-                </DoubleVectorProperty> 
-                
-                <DoubleVectorProperty
-                name="JoinSplitMixtureCoefficient"
-                command="SetJoinSplitMixtureCoefficient"
-                label="Join Split Mixture Coefficient"
-                number_of_elements="1"
-                default_values="0.5"
                 panel_visibility="advanced">
                   <Hints>
                   <PropertyWidgetDecorator type="GenericDecorator"
@@ -255,9 +526,58 @@ Online examples:
                                            value="1" />
                   </Hints>
                   <Documentation>
-                    When Input2 is filled, either it contains split tree and Input1 join tree or the other way around. This parameter allows to ponderate more or less the second input or the first one in the computation of the barycenter.
+                    Set the alpha coefficient of the first tree. Use to work when there is only 2 input trees, the alpha of the second input will be (1-alpha).
                   </Documentation>
                   <DoubleRangeDomain name="range" min="0" max="1" />
+                </DoubleVectorProperty> 
+                
+                <IntVectorProperty
+                name="DiagramPairTypes"
+                label="Diagram Pair Types"
+                command="SetDiagramPairTypes"
+                number_of_elements="1"
+                default_values="0"
+                panel_visibility="advanced">
+                <EnumerationDomain name="enum">
+                    <Entry value="0" text="Min-Saddle and Saddle-Max"/>
+                    <Entry value="1" text="Min-Saddle and Saddle-Saddle"/>
+                    <Entry value="2" text="Saddle-Saddle Saddle-Max"/>
+                </EnumerationDomain>
+                  <Documentation>
+                    The types of pairs to use when the input are persistence diagrams. This can be weigthed with the "Pair Type Mixture Coefficient" parameter (0 for only the second type of pairs and 1 for the first type of pairs).
+                  </Documentation>
+                </IntVectorProperty>
+                
+                <DoubleVectorProperty
+                name="JoinSplitMixtureCoefficient"
+                command="SetJoinSplitMixtureCoefficient"
+                label="Pair Type Mixture Coefficient"
+                number_of_elements="1"
+                default_values="0.5"
+                panel_visibility="advanced">
+                  <Documentation>
+                    If input are merge trees, this parameter allows to weight between the first input and the second input (only for clustering), typically join and split trees (0 for only the second input and 1 for only the first one).
+                    If input are persistence diagrams, this parameter allows to weight between different types of pairs, determined by the "Diagram Pair Types" parameter (default is min-sad and sad-max pairs), 0 for only the second type and 1 for only the first type.
+                  </Documentation>
+                  <DoubleRangeDomain name="range" min="0" max="1" />
+                </DoubleVectorProperty>
+                
+                <DoubleVectorProperty
+                name="NonMatchingWeight"
+                command="SetNonMatchingWeight"
+                label="Non Matching Weight"
+                number_of_elements="1"
+                default_values="1"
+                panel_visibility="advanced">
+                  <Hints>
+                  <PropertyWidgetDecorator type="GenericDecorator"
+                                           mode="visibility"
+                                           property="ComputeBarycenter"
+                                           value="0" />
+                  </Hints>
+                  <Documentation>
+                    Weight given to the insertion and deletion costs in the distance computation.
+                  </Documentation>
                 </DoubleVectorProperty>
                 
                 <!-- Input options -->
@@ -317,19 +637,73 @@ Online examples:
                                            mode="visibility"
                                            property="OutputTrees"
                                            value="1" />
-                  <PropertyWidgetDecorator type="GenericDecorator"
-                                           mode="visibility"
-                                           property="MergeTreePlanarLayout"
-                                           value="0" />
                   </Hints>
                 <EnumerationDomain name="enum">
                     <Entry value="0" text="X"/>
                     <Entry value="1" text="Y"/>
                     <Entry value="2" text="Z"/>
+                    <Entry value="3" text="Custom"/>
                 </EnumerationDomain>
                   <Documentation>
                   </Documentation>
                 </IntVectorProperty>
+                
+                <DoubleVectorProperty
+                name="XShift"
+                command="SetXShift"
+                label="X Shift"
+                number_of_elements="1"
+                default_values="1"
+                panel_visibility="advanced">
+                  <Hints>
+                  <PropertyWidgetDecorator type="GenericDecorator"
+                                           mode="visibility"
+                                           property="DimensionToShift"
+                                           value="3" />
+                  </Hints>
+                  <Documentation>
+                    
+                  </Documentation>
+                  <DoubleRangeDomain name="range" min="0" max="1" />
+                </DoubleVectorProperty>
+                
+                <DoubleVectorProperty
+                name="YShift"
+                command="SetYShift"
+                label="Y Shift"
+                number_of_elements="1"
+                default_values="0"
+                panel_visibility="advanced">
+                  <Hints>
+                  <PropertyWidgetDecorator type="GenericDecorator"
+                                           mode="visibility"
+                                           property="DimensionToShift"
+                                           value="3" />
+                  </Hints>
+                  <Documentation>
+                    
+                  </Documentation>
+                  <DoubleRangeDomain name="range" min="0" max="1" />
+                </DoubleVectorProperty>
+                
+                <DoubleVectorProperty
+                name="ZShift"
+                command="SetZShift"
+                label="Z Shift"
+                number_of_elements="1"
+                default_values="0"
+                panel_visibility="advanced">
+                  <Hints>
+                  <PropertyWidgetDecorator type="GenericDecorator"
+                                           mode="visibility"
+                                           property="DimensionToShift"
+                                           value="3" />
+                  </Hints>
+                  <Documentation>
+                    
+                  </Documentation>
+                  <DoubleRangeDomain name="range" min="0" max="1" />
+                </DoubleVectorProperty>
                 
                 <IntVectorProperty
                 name="BarycenterPositionAlpha"
@@ -412,9 +786,17 @@ Online examples:
             <PropertyGroup panel_widget="Line" label="Input options">
               <Property name="ComputeBarycenter"/>
               <Property name="NumberOfBarycenters"/>
+              <Property name="BarycenterSizeLimitPercent"/>
               <Property name="Deterministic"/>
               <Property name="Alpha"/>
+              <Property name="DiagramPairTypes"/>
               <Property name="JoinSplitMixtureCoefficient"/>
+              <Property name="UseMedianBarycenter"/>
+              <Property name="UseFixedInit"/>
+              <Property name="FixedInitNumber"/>
+              <!-- <Property name="UseEarlyOut"/> -->
+              <Property name="IterationLimit"/>
+              <Property name="NonMatchingWeight"/>
               <!-- <Property name="UseMinMaxPair"/> -->
             </PropertyGroup>
             ${MERGE_TREE_PREPROCESS_WIDGETS}
@@ -423,6 +805,9 @@ Online examples:
               <Property name="OutputTrees"/>
               <Property name="DimensionSpacing"/>
               <Property name="DimensionToShift"/>
+              <Property name="XShift"/>
+              <Property name="YShift"/>
+              <Property name="ZShift"/>
               <Property name="BarycenterPositionAlpha"/>
               <Property name="MergeTreePlanarLayout"/>
             </PropertyGroup>

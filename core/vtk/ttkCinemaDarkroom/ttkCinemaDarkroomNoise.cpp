@@ -12,8 +12,7 @@ vtkStandardNewMacro(ttkCinemaDarkroomNoise);
 ttkCinemaDarkroomNoise::ttkCinemaDarkroomNoise() : ttkCinemaDarkroomShader() {
   this->setDebugMsgPrefix("CinemaDarkroomNoise");
 }
-ttkCinemaDarkroomNoise::~ttkCinemaDarkroomNoise() {
-}
+ttkCinemaDarkroomNoise::~ttkCinemaDarkroomNoise() = default;
 
 int ttkCinemaDarkroomNoise::RequestData(vtkInformation *ttkNotUsed(request),
                                         vtkInformationVector **inputVector,
@@ -23,7 +22,7 @@ int ttkCinemaDarkroomNoise::RequestData(vtkInformation *ttkNotUsed(request),
   auto outputImage = vtkImageData::GetData(outputVector);
   outputImage->ShallowCopy(inputImage);
 
-  size_t nPoints = outputImage->GetNumberOfPoints();
+  size_t const nPoints = outputImage->GetNumberOfPoints();
 
   auto noise = vtkSmartPointer<vtkFloatArray>::New();
   noise->SetName("Noise");
@@ -33,7 +32,7 @@ int ttkCinemaDarkroomNoise::RequestData(vtkInformation *ttkNotUsed(request),
   int dim[3];
   outputImage->GetDimensions(dim);
 
-  ttk::Timer timer;
+  ttk::Timer const timer;
   const std::string msg = "Computing Noise (" + std::to_string(dim[0]) + "x"
                           + std::to_string(dim[1]) + "x"
                           + std::to_string(dim[2]) + ")";

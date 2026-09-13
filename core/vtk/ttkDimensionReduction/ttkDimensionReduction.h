@@ -1,11 +1,12 @@
 /// \class ttkDimensionReduction
 /// \ingroup vtk
-/// \author Your Name Here <Your Email Address Here>
-/// \date The Date Here.
+/// \author GuillaumeFavelier <guillaume.favelier@gmail.com>
+/// \date September 2018.
 ///
-/// \brief TTK VTK-filter that wraps the dimensionReduction processing package.
+/// \brief TTK VTK-filter that wraps the ttk::DimensionReduction
+/// processing package.
 ///
-/// VTK wrapping code for the @DimensionReduction package.
+/// VTK wrapping code for the ttk::DimensionReduction package.
 ///
 /// \param Input Input scalar field (vtkDataSet)
 /// \param Output Output scalar field (vtkDataSet)
@@ -20,14 +21,59 @@
 ///
 /// \b Online \b examples: \n
 ///   - <a
-///   href="https://topology-tool-kit.github.io/examples/karhunenLoveDigits64Dimensions//">Karhunen-Love
-///   Digits 64-Dimensions example</a> \n
-///   - <a
 ///   href="https://topology-tool-kit.github.io/examples/1manifoldLearning/">1-Manifold
 ///   Learning example</a> \n
 ///   - <a
+///   href="https://topology-tool-kit.github.io/examples/clusteringKelvinHelmholtzInstabilities/">
+///   Clustering Kelvin Helmholtz Instabilities example</a> \n
+///   - <a
+///   href="https://topology-tool-kit.github.io/examples/karhunenLoveDigits64Dimensions/">Karhunen-Love
+///   Digits 64-Dimensions example</a> \n
+///   - <a
 ///   href="https://topology-tool-kit.github.io/examples/mergeTreeClustering/">Merge
 ///   Tree Clustering example</a> \n
+///   - <a
+///   href="https://topology-tool-kit.github.io/examples/mergeTreePGA/">Merge
+///   Tree Principal Geodesic Analysis example</a> \n
+///   - <a
+///   href="https://topology-tool-kit.github.io/examples/persistenceDiagramPGA/">Persistence
+///   Diagram Principal Geodesic Analysis example</a> \n
+///   - <a
+///   href="https://topology-tool-kit.github.io/examples/persistentGenerators_householdAnalysis/">Persistent
+///   Generators Household Analysis example</a> \n
+///   - <a
+///   href="https://topology-tool-kit.github.io/examples/persistentGenerators_periodicPicture/">Persistent
+///   Generators Periodic Picture example</a> \n
+///   - <a
+///   href="https://topology-tool-kit.github.io/examples/topoAEppTeaser/">Topological
+///   Autoencoders++ Teaser example</a> \n
+///   - <a
+///   href="https://topology-tool-kit.github.io/examples/topoMapTeaser/">TopoMap
+///   Teaser example</a> \n
+///
+
+/// \b Related \b publication: \n
+/// "Topomap: A 0-dimensional homology preserving projection of high-dimensional
+/// data"\n Harish Doraiswamy, Julien Tierny, Paulo J. S. Silva, Luis Gustavo
+/// Nonato, and Claudio Silva\n Proc. of IEEE VIS 2020.\n IEEE Transactions on
+/// Visualization and Computer Graphics 27(2): 561-571, 2020. \n
+///
+/// "Topological Autoencoders" \n
+/// Michael Moor, Max Horn, Bastian Rieck, Karsten Borgwardt, \n
+/// Proceedings of the 37th International Conference on Machine Learning,
+/// 2020. \n
+///
+/// "Optimizing persistent homology-based functions" \n
+/// Mathieu Carriere, Frederic Chazal, Marc Glisse, Yuichi Ike,
+/// Hariprasad Kannan, Yuhei Umeda, \n
+/// Proceedings of the 38th International Conference on Machine Learning,
+/// 2021. \n
+///
+/// "Topological Autoencoders++: Fast and Accurate Cycle-Aware Dimensionality
+/// Reduction" \n
+/// MattÃ©o ClÃ©mot, Julie Digne, Julien Tierny, \n
+/// IEEE Transactions on Visualization and Computer Graphics.
+/// Accepted, to be presented at IEEE VIS 2026.
 
 #pragma once
 
@@ -36,7 +82,10 @@
 
 // TTK includes
 #include <DimensionReduction.h>
+#include <TopoMap.h>
+#include <TopologicalDimensionReduction.h>
 #include <ttkAlgorithm.h>
+#include <ttkMacros.h>
 
 class TTKDIMENSIONREDUCTION_EXPORT ttkDimensionReduction
   : public ttkAlgorithm,
@@ -63,6 +112,22 @@ public:
   vtkSetMacro(RegexpString, const std::string &);
   vtkGetMacro(RegexpString, std::string);
 
+  void SetInitializationFields(const std::string &s) {
+    InitializationFields.push_back(s);
+    Modified();
+  }
+
+  void ClearInitializationFields() {
+    InitializationFields.clear();
+    Modified();
+  }
+
+  vtkSetMacro(SelectInitializationFieldsWithRegexp, bool);
+  vtkGetMacro(SelectInitializationFieldsWithRegexp, bool);
+
+  vtkSetMacro(InitializationRegexpString, const std::string &);
+  vtkGetMacro(InitializationRegexpString, std::string);
+
   vtkSetMacro(NumberOfComponents, int);
   vtkGetMacro(NumberOfComponents, int);
 
@@ -72,8 +137,8 @@ public:
   vtkSetMacro(IsDeterministic, int);
   vtkGetMacro(IsDeterministic, int);
 
-  vtkSetMacro(Method, int);
-  vtkGetMacro(Method, int);
+  ttkSetEnumMacro(Method, METHOD);
+  vtkGetEnumMacro(Method, METHOD);
 
   vtkSetMacro(KeepAllDataArrays, bool);
   vtkGetMacro(KeepAllDataArrays, bool);
@@ -81,10 +146,7 @@ public:
   // SE && MDS
   void SetInputIsADistanceMatrix(const bool b) {
     this->InputIsADistanceMatrix = b;
-    if(b) {
-      this->mds_Dissimilarity = "precomputed";
-      this->se_Affinity = "precomputed";
-    }
+    this->setIsInputDistanceMatrix(b);
     Modified();
   }
   vtkGetMacro(InputIsADistanceMatrix, bool);
@@ -190,6 +252,9 @@ public:
   vtkSetMacro(iso_NeighborsAlgorithm, const std::string &);
   vtkGetMacro(iso_NeighborsAlgorithm, std::string);
 
+  vtkSetMacro(iso_Metric, const std::string &);
+  vtkGetMacro(iso_Metric, std::string);
+
   // PCA
   vtkSetMacro(pca_Copy, bool);
   vtkGetMacro(pca_Copy, bool);
@@ -205,6 +270,65 @@ public:
 
   vtkSetMacro(pca_MaxIteration, const std::string &);
   vtkGetMacro(pca_MaxIteration, std::string);
+
+  // TopoMap
+  vtkSetMacro(topomap_AngularSampleNb, unsigned long int);
+  vtkGetMacro(topomap_AngularSampleNb, unsigned long int);
+
+  vtkSetMacro(topomap_CheckMST, bool);
+  vtkGetMacro(topomap_CheckMST, bool);
+
+  ttkSetEnumMacro(topomap_Strategy, ttk::TopoMap::STRATEGY);
+  vtkGetEnumMacro(topomap_Strategy, ttk::TopoMap::STRATEGY);
+
+  // AutoEncoder
+  vtkSetMacro(ae_CUDA, bool);
+  vtkGetMacro(ae_CUDA, bool);
+
+  vtkSetMacro(ae_Deterministic, bool);
+  vtkGetMacro(ae_Deterministic, bool);
+
+  vtkSetMacro(ae_Seed, int);
+  vtkGetMacro(ae_Seed, int);
+
+  vtkSetMacro(ae_Epochs, int);
+  vtkGetMacro(ae_Epochs, int);
+
+  vtkSetMacro(ae_LearningRate, double);
+  vtkGetMacro(ae_LearningRate, double);
+
+  ttkSetEnumMacro(ae_Method, ttk::TopologicalDimensionReduction::REGUL);
+  vtkGetEnumMacro(ae_Method, ttk::TopologicalDimensionReduction::REGUL);
+
+  ttkSetEnumMacro(ae_Optimizer, ttk::TopologicalDimensionReduction::OPTIMIZER);
+  vtkGetEnumMacro(ae_Optimizer, ttk::TopologicalDimensionReduction::OPTIMIZER);
+
+  ttkSetEnumMacro(ae_Model, ttk::TopologicalDimensionReduction::MODEL);
+  vtkGetEnumMacro(ae_Model, ttk::TopologicalDimensionReduction::MODEL);
+
+  vtkSetMacro(ae_Architecture, const std::string &);
+  vtkGetMacro(ae_Architecture, std::string);
+
+  vtkSetMacro(ae_Activation, const std::string &);
+  vtkGetMacro(ae_Activation, std::string);
+
+  vtkSetMacro(ae_BatchSize, int);
+  vtkGetMacro(ae_BatchSize, int);
+
+  vtkSetMacro(ae_BatchNormalization, bool);
+  vtkGetMacro(ae_BatchNormalization, bool);
+
+  vtkSetMacro(ae_RegCoefficient, double);
+  vtkGetMacro(ae_RegCoefficient, double);
+
+  vtkSetMacro(IsInputImages, bool);
+  vtkGetMacro(IsInputImages, bool);
+
+  vtkSetMacro(ae_PreOptimize, bool);
+  vtkGetMacro(ae_PreOptimize, bool);
+
+  vtkSetMacro(ae_PreOptimizeEpochs, int);
+  vtkGetMacro(ae_PreOptimizeEpochs, int);
 
   // testing
   vtkSetMacro(ModulePath, const std::string &);
@@ -231,10 +355,10 @@ private:
   std::string RegexpString{".*"};
   std::vector<std::string> ScalarFields{};
 
-  int NumberOfComponents{2};
-  int NumberOfNeighbors{5};
-  int Method{2}; // MDS
-  int IsDeterministic{true};
+  bool SelectInitializationFieldsWithRegexp{false};
+  std::string InitializationRegexpString{".*"};
+  std::vector<std::string> InitializationFields{};
+
   bool KeepAllDataArrays{true};
 
   // mds && se

@@ -21,10 +21,12 @@ ttkScalarFieldNormalizer::ttkScalarFieldNormalizer() {
   this->SetNumberOfInputPorts(1);
   this->SetNumberOfOutputPorts(1);
   setDebugMsgPrefix("ScalarFieldNormalizer");
+#ifdef TTK_ENABLE_MPI
+  hasMPISupport_ = true;
+#endif
 }
 
-ttkScalarFieldNormalizer::~ttkScalarFieldNormalizer() {
-}
+ttkScalarFieldNormalizer::~ttkScalarFieldNormalizer() = default;
 
 int ttkScalarFieldNormalizer::FillInputPortInformation(int port,
                                                        vtkInformation *info) {
@@ -55,7 +57,7 @@ int ttkScalarFieldNormalizer::normalize(vtkDataArray *input,
   double min = 0, max = 0;
   for(SimplexId i = 0; i < input->GetNumberOfTuples(); i++) {
 
-    double value = input->GetTuple1(i);
+    double const value = input->GetTuple1(i);
 
     if((!i) || (value < min)) {
       min = value;
@@ -64,6 +66,15 @@ int ttkScalarFieldNormalizer::normalize(vtkDataArray *input,
       max = value;
     }
   }
+
+#ifdef TTK_ENABLE_MPI
+  if(ttk::isRunningWithMPI()) {
+    // if we are built with MPI and are running with MPI, we need to calculate
+    // the min and max over all ranks. we do this by using MPI_Allreduce
+    MPI_Allreduce(MPI_IN_PLACE, &min, 1, MPI_DOUBLE, MPI_MIN, ttk::MPIcomm_);
+    MPI_Allreduce(MPI_IN_PLACE, &max, 1, MPI_DOUBLE, MPI_MAX, ttk::MPIcomm_);
+  }
+#endif
 
   for(SimplexId i = 0; i < input->GetNumberOfTuples(); i++) {
     double value = input->GetTuple1(i);
@@ -85,12 +96,14 @@ int ttkScalarFieldNormalizer::RequestData(vtkInformation *ttkNotUsed(request),
 
   // get input scalar field
   vtkDataArray *inputArray = this->GetInputArrayToProcess(0, inputVector);
-  if(inputArray == nullptr) {
-    this->printErr("No such input scalar field");
-    return 0;
+
+  int const keepGoing
+    = ttkAlgorithm::checkEmptyMPIInput<vtkDataArray>(inputArray);
+  if(keepGoing < 2) {
+    return keepGoing;
   }
 
-  vtkSmartPointer<vtkDataArray> outputArray
+  vtkSmartPointer<vtkDataArray> const outputArray
     = vtkSmartPointer<vtkDataArray>::Take(inputArray->NewInstance());
   outputArray->SetName(inputArray->GetName());
   outputArray->SetNumberOfComponents(1);

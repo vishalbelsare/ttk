@@ -19,7 +19,7 @@
 ///
 /// \sa ttkScalarFieldCriticalPoints
 /// \sa ttkIntegralLines
-/// \sa ttkFTMTree
+/// \sa ttkMergeTree
 /// \sa ttkIdentifiers
 /// \sa ttk::QuadrangulationSubdivision
 ///
@@ -57,9 +57,6 @@ public:
 
   vtkSetMacro(LockAllInputVertices, bool);
   vtkGetMacro(LockAllInputVertices, bool);
-
-  vtkSetMacro(ReverseProjection, bool);
-  vtkGetMacro(ReverseProjection, bool);
 
   vtkSetMacro(HausdorffLevel, float);
   vtkGetMacro(HausdorffLevel, float);

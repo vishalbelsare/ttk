@@ -1,21 +1,21 @@
 #!/usr/bin/env python
 
-#/// \ingroup examples
-#/// \author Lutz Hofmann <lutz.hofmann@iwr.uni-heidelberg.de>
-#/// \date August 2019.
-#///
-#/// \brief Minimalist python TTK example pipeline, including:
-#///  -# The computation of a persistence curve
-#///  -# The computation of a persistence diagram
-#///  -# The selection of the most persistent pairs of the diagram
-#///  -# The pre-simplification of the data according to this selection
-#///  -# The computation of the Morse-Smale complex on this simplified data
-#///  -# The storage of the output of this pipeline to disk.
-#///
-#/// This example reproduces the Figure 1 of the TTK companion paper:
-#/// "The Topology ToolKit", J. Tierny, G. Favelier, J. Levine, C. Gueunet, M.
-#/// Michaux., IEEE Transactions on Visualization and Computer Graphics, Proc.
-#/// of IEEE VIS 2017.
+# /// \ingroup examples
+# /// \author Lutz Hofmann <lutz.hofmann@iwr.uni-heidelberg.de>
+# /// \date August 2019.
+# ///
+# /// \brief Minimalist python TTK example pipeline, including:
+# ///  -# The computation of a persistence curve
+# ///  -# The computation of a persistence diagram
+# ///  -# The selection of the most persistent pairs of the diagram
+# ///  -# The pre-simplification of the data according to this selection
+# ///  -# The computation of the Morse-Smale complex on this simplified data
+# ///  -# The storage of the output of this pipeline to disk.
+# ///
+# /// This example reproduces the Figure 1 of the TTK companion paper:
+# /// "The Topology ToolKit", J. Tierny, G. Favelier, J. Levine, C. Gueunet, M.
+# /// Michaux., IEEE Transactions on Visualization and Computer Graphics, Proc.
+# /// of IEEE VIS 2017.
 
 import sys
 
@@ -45,31 +45,36 @@ else:
 reader = vtkXMLUnstructuredGridReader()
 reader.SetFileName(inputFilePath)
 
-# 2. computing the persistence curve
-curve = ttkPersistenceCurve()
-curve.SetInputConnection(reader.GetOutputPort())
-curve.SetInputArrayToProcess(0, 0, 0, 0, "data")
-curve.SetDebugLevel(3)
-
-# 3. computing the persitence diagram
+# 2. computing the persistence diagram
 diagram = ttkPersistenceDiagram()
 diagram.SetInputConnection(reader.GetOutputPort())
 diagram.SetInputArrayToProcess(0, 0, 0, 0, "data")
 diagram.SetDebugLevel(3)
 
+# 3. computing the persistence curve from the persistence diagram
+curve = ttkPersistenceCurve()
+curve.SetInputConnection(diagram.GetOutputPort())
+curve.SetDebugLevel(3)
+
 # 4. selecting the critical point pairs
 criticalPairs = vtkThreshold()
 criticalPairs.SetInputConnection(diagram.GetOutputPort())
 criticalPairs.SetInputArrayToProcess(
-    0, 0, 0, vtkDataObject.FIELD_ASSOCIATION_CELLS, "PairIdentifier")
-criticalPairs.ThresholdBetween(-0.1, 999999)
+    0, 0, 0, vtkDataObject.FIELD_ASSOCIATION_CELLS, "PairIdentifier"
+)
+criticalPairs.SetThresholdFunction(vtkThreshold.THRESHOLD_BETWEEN)
+criticalPairs.SetLowerThreshold(-0.1)
+criticalPairs.SetUpperThreshold(999999)
 
 # 5. selecting the most persistent pairs
 persistentPairs = vtkThreshold()
 persistentPairs.SetInputConnection(criticalPairs.GetOutputPort())
 persistentPairs.SetInputArrayToProcess(
-    0, 0, 0, vtkDataObject.FIELD_ASSOCIATION_CELLS, "Persistence")
-persistentPairs.ThresholdBetween(0.05, 999999)
+    0, 0, 0, vtkDataObject.FIELD_ASSOCIATION_CELLS, "Persistence"
+)
+persistentPairs.SetThresholdFunction(vtkThreshold.THRESHOLD_BETWEEN)
+persistentPairs.SetLowerThreshold(0.05)
+persistentPairs.SetUpperThreshold(999999)
 
 # 6. simplifying the input data to remove non-persistent pairs
 topologicalSimplification = ttkTopologicalSimplification()

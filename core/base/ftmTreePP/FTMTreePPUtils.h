@@ -5,9 +5,6 @@
 ///
 /// Utils function for manipulating FTMTree class
 
-#ifndef _FTMTREEPPUTILS_H
-#define _FTMTREEPPUTILS_H
-
 #pragma once
 
 #include <FTMTree.h>
@@ -32,11 +29,6 @@ namespace ttk {
       std::vector<std::tuple<SimplexId, SimplexId, dataType>> pairs;
       getPersistencePairs<dataType>(tree, pairs);
       for(auto pair : pairs) {
-        if(tree->getNode(std::get<0>(pair))->getOrigin() < std::get<0>(pair)
-           and tree->getNode(std::get<0>(pair))->getOrigin() >= 0)
-          tree->getNode(tree->getNode(std::get<0>(pair))->getOrigin())
-            ->setOrigin(std::get<1>(pair));
-
         tree->getNode(std::get<0>(pair))->setOrigin(std::get<1>(pair));
         tree->getNode(std::get<1>(pair))->setOrigin(std::get<0>(pair));
       }
@@ -45,5 +37,3 @@ namespace ttk {
 
   } // namespace ftm
 } // namespace ttk
-
-#endif

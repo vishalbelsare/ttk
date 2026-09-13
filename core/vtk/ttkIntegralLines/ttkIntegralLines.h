@@ -1,7 +1,9 @@
 /// \ingroup vtk
 /// \class ttkIntegralLines
 /// \author Guillaume Favelier <guillaume.favelier@lip6.fr>
+/// \author Eve Le Guillou <eve.le-guillou@lip6.fr>
 /// \date March 2016
+/// \date MPI implementation: December 2022
 ///
 /// \brief TTK VTK-filter for the computation of edge-based integral lines of
 /// the gradient of an input scalar field.
@@ -55,6 +57,11 @@
 ///
 /// \sa ttk::IntegralLines
 /// \sa vtkIdentifiers
+///
+/// \b Online \b examples: \n
+///   - <a
+///   href="https://topology-tool-kit.github.io/examples/mpiExample/">
+///   MPI example</a> \n
 
 #pragma once
 
@@ -63,7 +70,10 @@
 
 // ttk code includes
 #include <IntegralLines.h>
+#include <NumericalIntegralLines.h>
+#include <VPaths.h>
 #include <ttkAlgorithm.h>
+#include <ttkMacros.h>
 
 class vtkUnstructuredGrid;
 
@@ -75,6 +85,12 @@ public:
 
   vtkTypeMacro(ttkIntegralLines, ttkAlgorithm);
 
+  enum class BACKEND {
+    ONESKELETON = 0,
+    NUMERICAL = 1,
+    DISCRETE = 2,
+  };
+
   vtkGetMacro(Direction, int);
   vtkSetMacro(Direction, int);
 
@@ -84,10 +100,29 @@ public:
   vtkSetMacro(ForceInputOffsetScalarField, bool);
   vtkGetMacro(ForceInputOffsetScalarField, bool);
 
-  int getTrajectories(vtkDataSet *input,
-                      ttk::Triangulation *triangulation,
-                      std::vector<std::vector<ttk::SimplexId>> &trajectories,
-                      vtkUnstructuredGrid *output);
+  ttkSetEnumMacro(BackEnd, BACKEND);
+  vtkGetEnumMacro(BackEnd, BACKEND);
+
+  vtkSetMacro(EnableForking, bool);
+  vtkGetMacro(EnableForking, bool);
+
+  /**
+   * This method converts the output data in VTK data types.
+   * It constructs the new unstructured grid and associates scalar data
+   * to its points and cells.
+   */
+  template <typename triangulationType>
+  int getTrajectories(
+    vtkDataSet *input,
+    const triangulationType *triangulation,
+    const std::vector<ttk::ArrayLinkedList<ttk::intgl::IntegralLine,
+                                           INTEGRAL_LINE_TABULAR_SIZE>>
+      &integralLines,
+#ifdef TTK_ENABLE_MPI
+    const std::vector<ttk::SimplexId> &globalVertexId,
+    const std::vector<ttk::SimplexId> &globalCellId,
+#endif
+    vtkUnstructuredGrid *output);
 
 protected:
   ttkIntegralLines();
@@ -100,6 +135,7 @@ protected:
                   vtkInformationVector *outputVector) override;
 
 private:
+  BACKEND BackEnd{BACKEND::ONESKELETON};
   int Direction{0};
   bool ForceInputVertexScalarField{false};
   bool ForceInputOffsetScalarField{false};

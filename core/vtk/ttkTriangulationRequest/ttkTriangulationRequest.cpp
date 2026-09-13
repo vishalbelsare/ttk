@@ -260,7 +260,8 @@ int ttkTriangulationRequest::RequestData(vtkInformation *ttkNotUsed(request),
           case SIMPLEX::VERTEX: {
             const auto vid = addVertex(si);
             cells->InsertNextCell(VTK_VERTEX, 1, &vid);
-            cellIds->InsertNextTuple1(vid);
+            // report the identifier of the vertex (not that of the point)
+            cellIds->InsertNextTuple1(si);
             cellDims->InsertNextTuple1(0);
           } break;
 
@@ -484,6 +485,84 @@ int ttkTriangulationRequest::RequestData(vtkInformation *ttkNotUsed(request),
             break;
         }
         break;
+      case REQUEST::COMPUTE_BOUNDARY:
+        switch(this->SimplexType) {
+          case SIMPLEX::VERTEX:
+            triangulation->preconditionBoundaryVertices();
+            for(SimplexId v = 0; v < triangulation->getNumberOfVertices();
+                ++v) {
+              if(triangulation->isVertexOnBoundary(v)) {
+                const auto vid = addVertex(v);
+                cells->InsertNextCell(VTK_VERTEX, 1, &vid);
+                // report the identifier of the vertex (not that of the point)
+                cellIds->InsertNextTuple1(v);
+                cellDims->InsertNextTuple1(0);
+              }
+            }
+            break;
+          case SIMPLEX::EDGE:
+            if(dimensionality == 1) {
+              triangulation->preconditionBoundaryVertices();
+              triangulation->preconditionVertexStars();
+              for(SimplexId v = 0; v < triangulation->getNumberOfVertices();
+                  ++v) {
+                if(triangulation->isVertexOnBoundary(v)) {
+                  SimplexId e{-1};
+                  triangulation->getVertexStar(v, 0, e);
+                  addEdge(e);
+                }
+              }
+            } else {
+              triangulation->preconditionBoundaryEdges();
+              for(SimplexId e = 0; e < triangulation->getNumberOfEdges(); ++e) {
+                if(triangulation->isEdgeOnBoundary(e)) {
+                  addEdge(e);
+                }
+              }
+            }
+            break;
+          case SIMPLEX::TRIANGLE:
+            if(dimensionality == 2) {
+              triangulation->preconditionBoundaryEdges();
+              triangulation->preconditionEdgeStars();
+              for(SimplexId e = 0; e < triangulation->getNumberOfEdges(); ++e) {
+                if(triangulation->isEdgeOnBoundary(e)) {
+                  SimplexId t{-1};
+                  triangulation->getEdgeStar(e, 0, t);
+                  addTriangle(t);
+                }
+              }
+            } else if(dimensionality == 3) {
+              triangulation->preconditionBoundaryTriangles();
+              for(SimplexId t = 0; t < triangulation->getNumberOfTriangles();
+                  ++t) {
+                if(triangulation->isTriangleOnBoundary(t)) {
+                  addTriangle(t);
+                }
+              }
+            } else {
+              this->printErr("No triangles on the boundary of 1D data-sets");
+            }
+            break;
+          case SIMPLEX::TETRA:
+            if(dimensionality == 3) {
+              triangulation->preconditionBoundaryTriangles();
+              triangulation->preconditionTriangleStars();
+              for(SimplexId t = 0; t < triangulation->getNumberOfTriangles();
+                  ++t) {
+                if(triangulation->isTriangleOnBoundary(t)) {
+                  SimplexId T{-1};
+                  triangulation->getTriangleStar(t, 0, T);
+                  addTetra(T);
+                }
+              }
+            } else {
+              this->printErr(
+                "No tetrahedron on the boundary of 1D or 2D data-sets");
+            }
+            break;
+        }
+        break;
     }
   }
 
@@ -522,7 +601,7 @@ int ttkTriangulationRequest::RequestData(vtkInformation *ttkNotUsed(request),
         newArr->SetName(arr->GetName());
         newArr->SetNumberOfComponents(1);
 
-        for(SimplexId v : vertices)
+        for(SimplexId const v : vertices)
           newArr->InsertNextTuple1(arr->GetTuple1(v));
 
         outputPointData->AddArray(newArr);

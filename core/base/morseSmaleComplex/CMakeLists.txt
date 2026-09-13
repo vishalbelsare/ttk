@@ -4,6 +4,6 @@ ttk_add_base_library(morseSmaleComplex
   HEADERS
     MorseSmaleComplex.h
   DEPENDS
-    morseSmaleComplex2D
-    morseSmaleComplex3D
+    discreteGradient
+    discreteMorseSandwich
     )

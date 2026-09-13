@@ -6,6 +6,7 @@ on:
       - '*'
     tags:
       - 'v?\d+.\d+.\d+-headless'
+      - 'headless*'
 
 jobs:
 
@@ -16,9 +17,9 @@ jobs:
     runs-on: ${{ matrix.os }}
     strategy:
       matrix:
-        os: [ubuntu-18.04, ubuntu-20.04]
+        os: [ubuntu-22.04, ubuntu-24.04, ubuntu-26.04]
     steps:
-    - uses: actions/checkout@v2
+    - uses: actions/checkout@v4
       name: Checkout TTK-ParaView source code
 
     - name: Install Ubuntu dependencies
@@ -26,8 +27,9 @@ jobs:
         sudo apt update
         # TTK-ParaView dependencies
         sudo apt install -y \
-          g++-11 \
+          g++ \
           libosmesa-dev \
+          libopenmpi-dev \
           ninja-build \
           dpkg-dev
 
@@ -38,16 +40,20 @@ jobs:
           -DCMAKE_BUILD_TYPE=Release \
           -DCMAKE_INSTALL_PREFIX=/usr \
           -DPARAVIEW_PYTHON_SITE_PACKAGES_SUFFIX=lib/python3/dist-packages \
+          -DPARAVIEW_USE_MPI=ON \
+          -DPARAVIEW_USE_PYTHON=ON \
           -DPARAVIEW_USE_QT=OFF \
           -DVTK_USE_X=OFF \
           -DVTK_OPENGL_HAS_OSMESA=ON \
+          -DVTK_OPENGL_HAS_EGL=OFF \
+          -DTTK_PARAVIEW_HEADLESS_DEPS=ON \
           -GNinja \
-          ..
+          $GITHUB_WORKSPACE
 
     - name: Build ParaView
       run: |
         cd build
-        cmake --build . --parallel
+        cmake --build . --parallel 
 
     - name: Create ParaView package
       run: |
@@ -55,57 +61,77 @@ jobs:
         cpack -G DEB
 
     - name: Upload Debian package
-      uses: actions/upload-artifact@v2
+      uses: actions/upload-artifact@v4
       with:
         name: ttk-paraview-headless-${{ matrix.os }}
         path: build/ttk-paraview.deb
+
 
   # ----- #
   # macOS #
   # ----- #
   build-macos:
-    runs-on: macos-latest
+    runs-on: ${{ matrix.os }}
+    strategy:
+      matrix:
+        os: [macos-14, macos-15, macos-26]
+    env:
+      CCACHE_DIR: /Users/runner/work/ttk/.ccache
+      CCACHE_MAXSIZE: 200M
     steps:
-    - uses: actions/checkout@v2
+    - uses: actions/checkout@v4
       name: Checkout TTK-ParaView source code
 
-    - name: Remove hosted Python
-      run: |
-        sudo rm -rf /usr/local/Frameworks/Python.framework
+    - uses: actions/setup-python@v5
+      with:
+        python-version: '3.13'
 
     - name: Install macOS dependencies
       run: |
         # ParaView dependencies
         brew install --cask xquartz
-        brew install wget libomp ninja python
+        brew install ninja open-mpi
 
     - name: Create & configure ParaView build directory
       run: |
-        # switch to Xcode 11 since Xcode 12 breaks the ParaView build
-        sudo xcode-select -s "/Applications/Xcode_11.7.app"
         mkdir build && cd build
         cmake \
           -DCMAKE_BUILD_TYPE=Release \
+          -DPARAVIEW_USE_MPI=OFF \
           -DPARAVIEW_USE_QT=OFF \
-          -DPython3_ROOT_DIR=$(brew --prefix python) \
           -GNinja \
-          ..
+          $GITHUB_WORKSPACE
 
     - name: Build ParaView
       run: |
         cd build
         cmake --build . --parallel
-        sudo cmake --build . --target install
 
     - name: Create ParaView package
       run: |
         cd build
-        sudo cpack -G TGZ
+        cpack -G TGZ
+
+    - name: Install ParaView
+      run: |
+        cd build
+        sudo cmake --build . --target install
+        # pvpython does not embed the correct PYTHONPATH
+        echo "PYTHONPATH=/usr/local/lib/python3.13/site-packages:$PYTHONPATH" >> $GITHUB_ENV
+
+    - name: Test Python imports
+      run: |
+        echo "import vtk" | python3
+        echo "from paraview.simple import *" | python3
+        echo "import vtk" | pvpython
+        echo "from paraview.simple import *" | pvpython
+      env:
+        DYLD_LIBRARY_PATH: /usr/local/lib
 
     - name: Upload compressed binaries
-      uses: actions/upload-artifact@v2
+      uses: actions/upload-artifact@v4
       with:
-        name: ttk-paraview-headless-macOS
+        name: ttk-paraview-headless-${{ matrix.os }}
         path: build/ttk-paraview.tar.gz
 
 
@@ -116,10 +142,9 @@ jobs:
     runs-on: windows-latest
     env:
       CONDA_ROOT: C:\Miniconda
-      VCVARS: C:\Program Files (x86)\Microsoft Visual Studio\2019\Enterprise\VC\Auxiliary\Build\vcvars64.bat
 
     steps:
-    - uses: actions/checkout@v2
+    - uses: actions/checkout@v4
       name: Checkout TTK-ParaView source code
 
     - uses: s-weigand/setup-conda@v1
@@ -127,44 +152,57 @@ jobs:
     - name: Install dependencies with conda
       shell: bash
       run: |
-        conda install -c conda-forge glew
+        conda install -c conda-forge glew python=3.10 ninja
 
     - name: Remove hosted Python
       shell: bash
       run: |
         rm -rf C:/hostedtoolcache/windows/Python
 
+    - name: Set up MSVC dev environment
+      uses: ilammy/msvc-dev-cmd@v1
+      with:
+        arch: x64
+
     - name: Create & configure ParaView build directory
       shell: cmd
       run: |
-        call "%VCVARS%"
-        mkdir build
-        cd build
+        cd ..
+        mkdir b
+        cd b
         cmake ^
           -DPARAVIEW_USE_QT=OFF ^
           -DPython3_ROOT_DIR="%CONDA_ROOT%" ^
+          -DCMAKE_AUTOUIC=OFF ^
           -DCMAKE_BUILD_TYPE=Release ^
-          -GNinja ^
-          ..
+          -DPARAVIEW_USE_VISKORES=OFF ^
+          -G "Ninja" ^
+          %GITHUB_WORKSPACE%
 
     - name: Build ParaView
       shell: cmd
       run: |
-        call "%VCVARS%"
-        cd build
+        cd ..\b
         cmake --build . --config Release --parallel
+
+    - name: Install NSIS
+      shell: bash
+      run: |
+        choco install nsis -y
+        echo "C:\Program Files (x86)\NSIS" >> $GITHUB_PATH
 
     - name: Create ParaView package
       shell: bash
       run: |
-        cd build
+        cd ../b
         cpack -G NSIS64
+        mv ttk-paraview.exe $GITHUB_WORKSPACE
 
     - name: Upload install executable
-      uses: actions/upload-artifact@v2
+      uses: actions/upload-artifact@v4
       with:
-        name: ttk-paraview-headless-windows
-        path: build/ttk-paraview.exe
+        name: ttk-paraview-headless-windows-latest
+        path: ttk-paraview.exe
 
 
   # --------------------- #
@@ -174,48 +212,95 @@ jobs:
     runs-on: ubuntu-latest
     needs: [build-ubuntu, build-macos, build-windows]
     steps:
-    - name: Create Release
-      id: create_release
-      uses: actions/create-release@v1
-      env:
-        GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+    - name: Delete previous release
+      uses: actions/github-script@v6
+      continue-on-error: true
       with:
-        tag_name: ${{ github.ref }}
-        release_name: Release ${{ github.ref }}
-        draft: false
-        prerelease: false
+        script: |
+          const { owner, repo } = context.repo
+          const { data: { id } } = await github.rest.repos.getReleaseByTag({
+            owner,
+            repo,
+            tag: "${{ github.ref_name }}"
+          })
+          await github.rest.repos.deleteRelease({ owner, repo, release_id: id })
+
+    - name: Create Release
+      uses: actions/github-script@v6
+      with:
+        script: |
+          const { owner, repo } = context.repo
+          await github.rest.repos.createRelease({
+            owner,
+            repo,
+            tag_name: "${{ github.ref_name }}",
+            name: "Release ${{ github.ref_name }}",
+            draft: false,
+            prerelease: true
+          })
 
     - name: Fetch all uploaded artifacts
-      uses: actions/download-artifact@v2
+      uses: actions/download-artifact@v4
 
-    - name: Upload Ubuntu Bionic .deb as Release Asset
+    - name: Upload Ubuntu Jammy .deb as Release Asset
       uses: svenstaro/upload-release-action@v2
       with:
         repo_token: ${{ secrets.GITHUB_TOKEN }}
         tag: ${{ github.ref }}
-        file: ttk-paraview-headless-ubuntu-18.04/ttk-paraview.deb
-        asset_name: ttk-paraview-headless-ubuntu-18.04.deb
+        file: ttk-paraview-headless-ubuntu-22.04/ttk-paraview.deb
+        asset_name: ttk-paraview-headless-ubuntu-22.04.deb
 
-    - name: Upload Ubuntu Focal .deb as Release Asset
+    - name: Upload Ubuntu Noble Numbat .deb as Release Asset
       uses: svenstaro/upload-release-action@v2
       with:
         repo_token: ${{ secrets.GITHUB_TOKEN }}
         tag: ${{ github.ref }}
-        file: ttk-paraview-headless-ubuntu-20.04/ttk-paraview.deb
-        asset_name: ttk-paraview-headless-ubuntu-20.04.deb
+        file: ttk-paraview-headless-ubuntu-24.04/ttk-paraview.deb
+        asset_name: ttk-paraview-headless-ubuntu-24.04.deb
 
-    - name: Upload .tar.gz as Release Asset
+    - name: Upload Ubuntu Noble Numbat .deb as Release Asset
       uses: svenstaro/upload-release-action@v2
       with:
         repo_token: ${{ secrets.GITHUB_TOKEN }}
         tag: ${{ github.ref }}
-        file: ttk-paraview-headless-macOS/ttk-paraview.tar.gz
-        asset_name: ttk-paraview-headless.tar.gz
+        file: ttk-paraview-headless-ubuntu-26.04/ttk-paraview.deb
+        asset_name: ttk-paraview-headless-ubuntu-26.04.deb
+
+    - name: Upload MacOS 26 .tar.gz as Release Asset
+      uses: svenstaro/upload-release-action@v2
+      with:
+        repo_token: ${{ secrets.GITHUB_TOKEN }}
+        tag: ${{ github.ref }}
+        file: ttk-paraview-headless-macos-26/ttk-paraview.tar.gz
+        asset_name: ttk-paraview-headless-macos-26.tar.gz
+
+    - name: Upload MacOS 15 .tar.gz as Release Asset
+      uses: svenstaro/upload-release-action@v2
+      with:
+        repo_token: ${{ secrets.GITHUB_TOKEN }}
+        tag: ${{ github.ref }}
+        file: ttk-paraview-headless-macos-15/ttk-paraview.tar.gz
+        asset_name: ttk-paraview-headless-macos-15.tar.gz
+
+    - name: Upload MacOS 14 .tar.gz as Release Asset
+      uses: svenstaro/upload-release-action@v2
+      with:
+        repo_token: ${{ secrets.GITHUB_TOKEN }}
+        tag: ${{ github.ref }}
+        file: ttk-paraview-headless-macos-14/ttk-paraview.tar.gz
+        asset_name: ttk-paraview-headless-macos-14.tar.gz
 
     - name: Upload .exe as Release Asset
       uses: svenstaro/upload-release-action@v2
       with:
         repo_token: ${{ secrets.GITHUB_TOKEN }}
         tag: ${{ github.ref }}
-        file: ttk-paraview-headless-windows/ttk-paraview.exe
+        file: ttk-paraview-headless-windows-latest/ttk-paraview.exe
         asset_name: ttk-paraview-headless.exe
+
+    - name: Delete package artifacts
+      uses: geekyeggo/delete-artifact@v5
+      with:
+          name: |
+              ttk-paraview-headless*

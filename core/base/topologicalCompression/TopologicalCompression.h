@@ -15,7 +15,7 @@
 
 // base code includes
 #include <FTMTreePP.h>
-#include <TopologicalSimplification.h>
+#include <LegacyTopologicalSimplification.h>
 #include <Triangulation.h>
 
 // std
@@ -37,7 +37,7 @@ namespace ttk {
      * @pre For this function to behave correctly in the absence of
      * the VTK wrapper, ttk::preconditionOrderArray() needs to be
      * called to fill the @p inputOffsets buffer prior to any
-     * computation (the VTK wrapper already includes a mecanism to
+     * computation (the VTK wrapper already includes a mechanism to
      * automatically generate such a preconditioned buffer).
      * @see examples/c++/main.cpp for an example use.
      */
@@ -187,8 +187,8 @@ namespace ttk {
 
     template <typename T>
     T Read(FILE *fm) const {
-      static_assert(std::is_same<T, bool>() || std::is_same<T, int>()
-                      || std::is_same<T, unsigned long>()
+      static_assert(std::is_same<T, uint8_t>() || std::is_same<T, int32_t>()
+                      || std::is_same<T, uint64_t>()
                       || std::is_same<T, double>(),
                     "Function should have only those types");
       T ret;
@@ -208,8 +208,8 @@ namespace ttk {
     }
     template <typename T>
     void Write(FILE *fm, T data) const {
-      static_assert(std::is_same<T, bool>() || std::is_same<T, int>()
-                      || std::is_same<T, unsigned long>()
+      static_assert(std::is_same<T, uint8_t>() || std::is_same<T, int32_t>()
+                      || std::is_same<T, uint64_t>()
                       || std::is_same<T, double>(),
                     "Function should have only those types");
       auto status = std::fwrite(&data, sizeof(T), 1, fm);
@@ -359,7 +359,7 @@ namespace ttk {
 
   protected:
     // General.
-    TopologicalSimplification topologicalSimplification{};
+    LegacyTopologicalSimplification topologicalSimplification{};
     ftm::FTMTreePP ftmTreePP;
 
     // Parameters
@@ -426,9 +426,9 @@ int ttk::TopologicalCompression::execute(
 // if (tol < 0 || tol > 100) return -4;
 #endif
 
-  int vertexNumber = triangulation.getNumberOfVertices();
+  int const vertexNumber = triangulation.getNumberOfVertices();
 
-  int res = 0;
+  int const res = 0;
   if(compressionType_ == (int)ttk::CompressionType::PersistenceDiagram)
     compressForPersistenceDiagram(vertexNumber, inputData, inputOffsets,
                                   outputData, Tolerance, triangulation);
@@ -451,7 +451,7 @@ int ttk::TopologicalCompression::ReadFromFile(
     return -4;
   }
 
-  bool useZlib = Read<bool>(fp);
+  bool const useZlib = Read<uint8_t>(fp);
   unsigned char *dest;
   std::vector<unsigned char> ddest;
   unsigned long destLen;
@@ -459,8 +459,8 @@ int ttk::TopologicalCompression::ReadFromFile(
 #ifdef TTK_ENABLE_ZLIB
   if(useZlib) {
     // [fp->ff] Read compressed data.
-    auto sl = Read<unsigned long>(fp); // Compressed size...
-    auto dl = Read<unsigned long>(fp); // Uncompressed size...
+    auto sl = Read<uint64_t>(fp); // Compressed size...
+    auto dl = Read<uint64_t>(fp); // Uncompressed size...
 
     destLen = dl;
     std::vector<unsigned char> ssource(sl);
@@ -476,8 +476,8 @@ int ttk::TopologicalCompression::ReadFromFile(
   } else {
     this->printMsg("File was not compressed with ZLIB.");
 
-    Read<unsigned long>(fp); // Compressed size...
-    unsigned long dl = Read<unsigned long>(fp); // Uncompressed size...
+    Read<uint64_t>(fp); // Compressed size...
+    const auto dl = Read<uint64_t>(fp); // Uncompressed size...
 
     destLen = dl;
     ddest.resize(destLen);
@@ -492,8 +492,8 @@ int ttk::TopologicalCompression::ReadFromFile(
   } else {
     this->printMsg(" ZLIB not installed, but file was not compressed anyways.");
 
-    Read<unsigned long>(fp); // Compressed size...
-    unsigned long dl = Read<unsigned long>(fp); // Uncompressed size...
+    Read<uint64_t>(fp); // Compressed size...
+    const auto dl = Read<uint64_t>(fp); // Uncompressed size...
 
     destLen = dl;
     ddest.resize(destLen);
@@ -505,16 +505,16 @@ int ttk::TopologicalCompression::ReadFromFile(
   // [fm->] Read data.
   char *buf = reinterpret_cast<char *>(dest);
 
-  //#ifndef _MSC_VER
-  // FILE *fm = fmemopen(buf, destLen, "r+");
-  //#else
+  // #ifndef _MSC_VER
+  //  FILE *fm = fmemopen(buf, destLen, "r+");
+  // #else
   const std::string s = fileName + std::string(".temp");
   const char *ffn = s.c_str();
   FILE *ftemp = fopen(ffn, "wb");
   fwrite(buf, destLen, sizeof(char), ftemp);
   fclose(ftemp);
   FILE *fm = fopen(ffn, "rb");
-  //#endif
+  // #endif
 
   // Do read topology.
   if(!(ZFPOnly)) {

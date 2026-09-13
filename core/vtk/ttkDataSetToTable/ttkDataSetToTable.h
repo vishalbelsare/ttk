@@ -13,6 +13,24 @@
 ///
 /// See the related ParaView example state files for usage examples within a
 /// VTK pipeline.
+///
+/// \b Online \b examples: \n
+///   - <a
+///   href="https://topology-tool-kit.github.io/examples/mergeTreePGA/">Merge
+///   Tree Principal Geodesic Analysis example</a> \n
+///   - <a
+///   href="https://topology-tool-kit.github.io/examples/mergeTreeWAE/">Merge
+///   tree Wasserstein Auto-Encoder example</a> \n
+///   - <a
+///   href="https://topology-tool-kit.github.io/examples/persistenceDiagramPGA/">Persistence
+///   Diagram Principal Geodesic Analysis example</a> \n
+///   - <a
+///   href="https://topology-tool-kit.github.io/examples/persistenceDiagramWAE/">Persistence
+///   Diagram Wasserstein Auto-Encoder example</a> \n
+///   - <a
+///   href="https://topology-tool-kit.github.io/examples/persistentGenerators_periodicPicture/">
+///   Persistent Generators Periodic Picture example</a> \n
+
 #pragma once
 
 // VTK Module
@@ -34,7 +52,7 @@ public:
 
 protected:
   ttkDataSetToTable();
-  ~ttkDataSetToTable();
+  ~ttkDataSetToTable() override;
 
   int FillInputPortInformation(int port, vtkInformation *info) override;
   int FillOutputPortInformation(int port, vtkInformation *info) override;

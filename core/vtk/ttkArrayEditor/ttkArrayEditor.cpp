@@ -34,8 +34,7 @@ ttkArrayEditor::ttkArrayEditor() {
   }
 }
 
-ttkArrayEditor::~ttkArrayEditor() {
-}
+ttkArrayEditor::~ttkArrayEditor() = default;
 
 vtkDataArraySelection *ttkArrayEditor::GetArraySelection(int association) {
   if(association >= 0 && association < vtkDataObject::NUMBER_OF_ASSOCIATIONS) {
@@ -67,8 +66,10 @@ template <typename VTK_T1, typename VTK_T2>
 int copyArrayData(vtkDataArray *target, vtkDataArray *copy) {
   auto targetData = ttkUtils::GetPointer<VTK_T1>(target);
   auto copyData = ttkUtils::GetPointer<VTK_T2>(copy);
-  for(size_t i = 0, n = target->GetNumberOfValues(); i < n; i++)
+  for(size_t i = 0, n = target->GetNumberOfValues(); i < n; i++) {
+    // NOLINTNEXTLINE (bugprone-signed-char-misuse)
     copyData[i] = (VTK_T2)(targetData[i]);
+  }
   return 1;
 }
 
@@ -79,7 +80,7 @@ int ttkArrayEditor::RequestData(vtkInformation *ttkNotUsed(request),
                                 vtkInformationVector **inputVector,
                                 vtkInformationVector *outputVector) {
 
-  std::string associationNames[3] = {"point", "cell", "field"};
+  std::string const associationNames[3] = {"point", "cell", "field"};
 
   // Pass Input to Output
   auto target = vtkDataObject::GetData(inputVector[0], 0);
@@ -98,7 +99,7 @@ int ttkArrayEditor::RequestData(vtkInformation *ttkNotUsed(request),
       if(this->DataString.length() > 0) {
 
         // get target attribute
-        int targetAssociation
+        int const targetAssociation
           = this->TargetAssociation < 0 ? 2 : this->TargetAssociation;
         auto outputAtt = output->GetAttributesAsFieldData(targetAssociation);
         if(!outputAtt) {
@@ -117,7 +118,7 @@ int ttkArrayEditor::RequestData(vtkInformation *ttkNotUsed(request),
           if(!ttkUtils::replaceVariables(this->DataString,
                                          output->GetFieldData(),
                                          finalExpressionString, errorMsg)) {
-            std::stringstream msg;
+            std::stringstream const msg;
             this->printErr(errorMsg);
             return 0;
           }
@@ -171,7 +172,7 @@ int ttkArrayEditor::RequestData(vtkInformation *ttkNotUsed(request),
           continue;
 
         // get target attribute
-        int targetAssociation
+        int const targetAssociation
           = this->TargetAssociation < 0 ? association : this->TargetAssociation;
         auto outputAtt = output->GetAttributesAsFieldData(targetAssociation);
         if(!outputAtt) {
@@ -202,7 +203,7 @@ int ttkArrayEditor::RequestData(vtkInformation *ttkNotUsed(request),
       if(!targetArray)
         return !this->printErr("Unable to retrieve input array.");
 
-      int targetArrayAssociation
+      int const targetArrayAssociation
         = this->GetInputArrayAssociation(0, inputVector);
 
       this->printMsg("Editing '" + std::string(targetArray->GetName()) + "' "
@@ -219,19 +220,19 @@ int ttkArrayEditor::RequestData(vtkInformation *ttkNotUsed(request),
             this->TargetArrayType < 0 ? targetArray->GetDataType()
                                       : this->TargetArrayType));
 
-        size_t nComponents = this->TargetArrayIndexation[1] >= 0
-                               ? this->TargetArrayIndexation[1]
-                             : this->TargetArrayIndexation[0] >= 0
-                               ? targetArray->GetNumberOfValues()
-                                   / this->TargetArrayIndexation[0]
-                               : targetArray->GetNumberOfComponents();
+        size_t const nComponents = this->TargetArrayIndexation[1] >= 0
+                                     ? this->TargetArrayIndexation[1]
+                                   : this->TargetArrayIndexation[0] >= 0
+                                     ? targetArray->GetNumberOfValues()
+                                         / this->TargetArrayIndexation[0]
+                                     : targetArray->GetNumberOfComponents();
 
-        size_t nTuples = this->TargetArrayIndexation[0] >= 0
-                           ? this->TargetArrayIndexation[0]
-                         : this->TargetArrayIndexation[1] >= 0
-                           ? targetArray->GetNumberOfValues()
-                               / this->TargetArrayIndexation[1]
-                           : targetArray->GetNumberOfTuples();
+        size_t const nTuples = this->TargetArrayIndexation[0] >= 0
+                                 ? this->TargetArrayIndexation[0]
+                               : this->TargetArrayIndexation[1] >= 0
+                                 ? targetArray->GetNumberOfValues()
+                                     / this->TargetArrayIndexation[1]
+                                 : targetArray->GetNumberOfTuples();
         copy->Allocate(nTuples * nComponents);
         copy->SetNumberOfComponents(nComponents);
         copy->SetNumberOfTuples(nTuples);
@@ -249,9 +250,9 @@ int ttkArrayEditor::RequestData(vtkInformation *ttkNotUsed(request),
                       : this->TargetArrayName.data());
 
       // get target attribute
-      int targetAssociation = this->TargetAssociation < 0
-                                ? targetArrayAssociation
-                                : this->TargetAssociation;
+      int const targetAssociation = this->TargetAssociation < 0
+                                      ? targetArrayAssociation
+                                      : this->TargetAssociation;
       auto outputAtt = output->GetAttributesAsFieldData(targetAssociation);
       if(!outputAtt) {
         this->printErr("Target does not have requested attribute type.");

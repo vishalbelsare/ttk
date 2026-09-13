@@ -1,9 +1,11 @@
 #include <WebSocketIO.h>
 
+#include <exception>
+
 ttk::WebSocketIO::WebSocketIO() {
   this->setDebugMsgPrefix("WebSocketIO");
 
-#if TTK_ENABLE_WEBSOCKETPP
+#ifdef TTK_ENABLE_WEBSOCKETPP
   this->server.set_error_channels(websocketpp::log::elevel::none);
   this->server.set_access_channels(websocketpp::log::alevel::none);
 
@@ -27,10 +29,14 @@ ttk::WebSocketIO::WebSocketIO() {
 }
 
 ttk::WebSocketIO::~WebSocketIO() {
-  this->stopServer();
+  try {
+    this->stopServer();
+  } catch(const std::exception &e) {
+    this->printErr(e.what());
+  }
 }
 
-#if TTK_ENABLE_WEBSOCKETPP
+#ifdef TTK_ENABLE_WEBSOCKETPP
 
 int ttk::WebSocketIO::isListening() {
   return this->server.is_listening();
@@ -55,7 +61,7 @@ int ttk::WebSocketIO::startServer(int PortNumber) {
   this->server.start_accept();
 
   // Start the Asio io_service run loop
-  this->serverThread = new thread([this]() {
+  this->serverThread = thread([this]() {
     try {
       {
         std::lock_guard<std::mutex> guard(this->mutex);
@@ -70,7 +76,7 @@ int ttk::WebSocketIO::startServer(int PortNumber) {
       this->printErr("Unable to start server: " + std::string(e.what()));
     }
   });
-  this->serverThread->detach();
+  this->serverThread.detach();
 
   this->printMsg("Starting Server at Port: " + std::to_string(this->portNumber),
                  1, t.getElapsedTime());
@@ -134,8 +140,6 @@ int ttk::WebSocketIO::stopServer() {
         std::lock_guard<std::mutex> guard(this->mutex);
         con = this->serverThreadRunning;
       }
-      delete this->serverThread;
-      this->serverThread = nullptr;
 
       this->printMsg("Terminating Server Thread", 1, 0,
                      ttk::debug::LineMode::NEW, ttk::debug::Priority::DETAIL);
@@ -245,7 +249,7 @@ int ttk::WebSocketIO::processEvent(const std::string &eventName,
   return 1;
 }
 
-int ttk::WebSocketIO::on_open(websocketpp::connection_hdl hdl) {
+int ttk::WebSocketIO::on_open(const websocketpp::connection_hdl &hdl) {
   std::lock_guard<std::mutex> lock(this->mutex);
 
   ttk::Timer t;
@@ -267,7 +271,7 @@ int ttk::WebSocketIO::on_open(websocketpp::connection_hdl hdl) {
   return 1;
 }
 
-int ttk::WebSocketIO::on_close(websocketpp::connection_hdl hdl) {
+int ttk::WebSocketIO::on_close(const websocketpp::connection_hdl &hdl) {
   std::lock_guard<std::mutex> lock(this->mutex);
 
   ttk::Timer t;
@@ -278,8 +282,10 @@ int ttk::WebSocketIO::on_close(websocketpp::connection_hdl hdl) {
   return 1;
 }
 
-int ttk::WebSocketIO::on_message(websocketpp::connection_hdl ttkNotUsed(hdl),
-                                 WSServer::message_ptr msg) {
+int ttk::WebSocketIO::on_message(
+  const websocketpp::connection_hdl &ttkNotUsed(hdl),
+  const WSServer::message_ptr &msg) {
+
   const auto &eventData = msg->get_payload();
   if(eventData.rfind("ttk_WSIO_", 9) != 0)
     this->printMsg("Custom Message Received", 1, 0);
@@ -311,14 +317,13 @@ int ttk::WebSocketIO::sendBinary(const size_t &ttkNotUsed(sizeInBytes),
 int ttk::WebSocketIO::sendMessage(const Message &ttkNotUsed(msg)) const {
   return 0;
 }
-int ttk::WebSocketIO::queueMessage(const std::string &ttkNotUsed(msg)) {
+int ttk::WebSocketIO::queueMessage(const std::string &) {
   return 0;
 }
-int ttk::WebSocketIO::queueMessage(const size_t &ttkNotUsed(sizeInBytes),
-                                   const void *ttkNotUsed(data)) {
+int ttk::WebSocketIO::queueMessage(const size_t &, const void *) {
   return 0;
 }
-int ttk::WebSocketIO::queueMessage(const Message &ttkNotUsed(msg)) {
+int ttk::WebSocketIO::queueMessage(const Message &) {
   return 0;
 }
 int ttk::WebSocketIO::clearMessageQueue() {

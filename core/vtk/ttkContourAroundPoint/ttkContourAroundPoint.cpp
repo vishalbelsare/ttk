@@ -10,28 +10,19 @@
 #include <vtkCellData.h>
 #include <vtkDataSet.h>
 #include <vtkUnstructuredGrid.h>
-
-#if VTK_MAJOR_VERSION >= 7
-#include <vtkAOSDataArrayTemplate.h>
-#define VTK_AOS_DATA_ARRAY_TEMPLATE vtkAOSDataArrayTemplate
-#else
-#include <vtkDataArrayTemplate.h>
-#define VTK_AOS_DATA_ARRAY_TEMPLATE vtkDataArrayTemplate
-#endif
+#include <vtkVersionMacros.h>
 
 #include <vtkFloatArray.h>
 #include <vtkIdTypeArray.h>
 
 #include <cassert>
-#include <type_traits>
 
 vtkStandardNewMacro(ttkContourAroundPoint);
 
-using Class = ttkContourAroundPoint;
-
 //----------------------------------------------------------------------------//
 
-int Class::FillInputPortInformation(int port, vtkInformation *info) {
+int ttkContourAroundPoint::FillInputPortInformation(int port,
+                                                    vtkInformation *info) {
   switch(port) {
     case 0:
       info->Set(vtkAlgorithm::INPUT_REQUIRED_DATA_TYPE(), "vtkDataSet");
@@ -45,7 +36,8 @@ int Class::FillInputPortInformation(int port, vtkInformation *info) {
   return 0;
 }
 
-int Class::FillOutputPortInformation(int port, vtkInformation *info) {
+int ttkContourAroundPoint::FillOutputPortInformation(int port,
+                                                     vtkInformation *info) {
   switch(port) {
     case 0:
     case 1:
@@ -57,9 +49,9 @@ int Class::FillOutputPortInformation(int port, vtkInformation *info) {
 
 //----------------------------------------------------------------------------//
 
-int Class::RequestData(vtkInformation *ttkNotUsed(request),
-                       vtkInformationVector **iVec,
-                       vtkInformationVector *oVec) {
+int ttkContourAroundPoint::RequestData(vtkInformation *ttkNotUsed(request),
+                                       vtkInformationVector **iVec,
+                                       vtkInformationVector *oVec) {
 
   _outFld = vtkUnstructuredGrid::GetData(oVec, 0);
   _outPts = vtkUnstructuredGrid::GetData(oVec, 1);
@@ -79,7 +71,7 @@ int Class::RequestData(vtkInformation *ttkNotUsed(request),
 
 //----------------------------------------------------------------------------//
 
-bool Class::preprocessFld(vtkDataSet *dataset) {
+bool ttkContourAroundPoint::preprocessFld(vtkDataSet *dataset) {
   ttk::Triangulation *triangulation = ttkAlgorithm::GetTriangulation(dataset);
   if(!triangulation)
     return false;
@@ -112,8 +104,8 @@ bool Class::preprocessFld(vtkDataSet *dataset) {
 
 //----------------------------------------------------------------------------//
 
-bool Class::preprocessPts(vtkUnstructuredGrid *nodes,
-                          vtkUnstructuredGrid *arcs) {
+bool ttkContourAroundPoint::preprocessPts(vtkUnstructuredGrid *nodes,
+                                          vtkUnstructuredGrid *arcs) {
   // ---- Point data ---- //
 
   auto points = nodes->GetPoints();
@@ -130,7 +122,7 @@ bool Class::preprocessPts(vtkUnstructuredGrid *nodes,
   if(!scalarBuf || !codeBuf)
     return false;
 
-    // ---- Cell data ---- //
+  // ---- Cell data ---- //
 
 #ifndef NDEBUG // each arc should of course be defined by exactly two vertices
   auto cells = arcs->GetCells();
@@ -211,7 +203,7 @@ bool Class::preprocessPts(vtkUnstructuredGrid *nodes,
 
 //----------------------------------------------------------------------------//
 
-bool Class::process() {
+bool ttkContourAroundPoint::process() {
   int errorCode = 0;
   switch(_scalarTypeCode) {
     vtkTemplateMacro((errorCode = this->execute<VTK_TT>()));
@@ -229,55 +221,33 @@ bool Class::process() {
 
 //----------------------------------------------------------------------------//
 
-bool Class::postprocess() {
-  ttk::SimplexId *cinfosBuf;
-  ttk::SimplexId nc;
-  float *coordsBuf;
-  float *scalarsBuf;
-  int *flagsBuf;
-  ttk::SimplexId nv;
-  this->getOutputContours(cinfosBuf, nc, coordsBuf, scalarsBuf, flagsBuf, nv);
+bool ttkContourAroundPoint::postprocess() {
+  ttk::SimplexId const nc = _outContoursNc;
   if(nc == 0) // very fine area filter
     return true;
 
-  // Pass ownership of the heap-allocated raw array to the respective
-  // vtkDataArray.
-  const int wantSave = 0;
-  // Use `delete[]` instead of the VTK default `free()`.
-  // (The enum is independent of the template type - just use float.)
-  const int delMethod
-    = VTK_AOS_DATA_ARRAY_TEMPLATE<float>::DeleteMethod::VTK_DATA_ARRAY_DELETE;
-
   // ---- Cell data (output 0) ---- //
 
-  int *ctypes = new int[nc];
+  std::vector<int> ctypes(nc);
 
   vtkIdType cinfoCounter = 0;
   for(ttk::SimplexId c = 0; c < nc; ++c) {
-    const auto nvOfCell = cinfosBuf[cinfoCounter];
+    const auto nvOfCell = _outContoursCinfos[cinfoCounter];
     assert(nvOfCell >= 2 && nvOfCell <= 3); // ensured in super class
     ctypes[c] = nvOfCell == 2 ? VTK_LINE : VTK_TRIANGLE;
     cinfoCounter += nvOfCell + 1;
   }
-  const vtkIdType cinfosSize = cinfoCounter;
-
-  vtkIdType *cinfosBufVtk{};
-  if(!std::is_same<ttk::SimplexId, vtkIdType>::value) { // unlikely
-    // Actually a warning would be in order-
-    // what if conversion is not possible (e.g. too large indices)?
-    cinfosBufVtk = new vtkIdType[cinfosSize];
-    for(ttk::SimplexId i = 0; i < cinfosSize; ++i)
-      cinfosBufVtk[i] = vtkIdType(cinfosBuf[i]);
-    delete[] cinfosBuf;
-  } else {
-    cinfosBufVtk = reinterpret_cast<vtkIdType *>(cinfosBuf);
-  }
 
   auto cells = vtkSmartPointer<vtkCellArray>::New();
   auto cinfoArr = vtkSmartPointer<vtkIdTypeArray>::New();
-  cinfoArr->SetArray(cinfosBufVtk, cinfosSize, wantSave, delMethod);
+  ttkUtils::SetVoidArray(
+    cinfoArr, _outContoursCinfos.data(), _outContoursCinfos.size(), 1);
+#if VTK_VERSION_NUMBER >= VTK_VERSION_CHECK(9, 6, 1)
+  cells->ImportLegacyFormat(cinfoArr);
+#else
   cells->SetCells(nc, cinfoArr);
-  _outFld->SetCells(ctypes, cells);
+#endif
+  _outFld->SetCells(ctypes.data(), cells);
 
   // ---- Point data (output 0) ---- //
 
@@ -290,39 +260,42 @@ bool Class::postprocess() {
   auto points = vtkSmartPointer<vtkPoints>::New();
   auto coordArr = vtkSmartPointer<vtkFloatArray>::New();
   coordArr->SetNumberOfComponents(3);
-  coordArr->SetArray(coordsBuf, nv * 3, wantSave, delMethod);
+  ttkUtils::SetVoidArray(
+    coordArr, _outContoursCoords.data(), _outContoursCoords.size(), 1);
   points->SetData(coordArr);
   _outFld->SetPoints(points);
 
   auto scalarArr = vtkFloatArray::New();
-  scalarArr->SetArray(scalarsBuf, nv, wantSave, delMethod);
+  ttkUtils::SetVoidArray(
+    scalarArr, _outContoursScalars.data(), _outContoursScalars.size(), 1);
   scalarArr->SetName(_scalarsName);
   _outFld->GetPointData()->AddArray(scalarArr);
 
   auto flagArr = vtkIntArray::New();
-  flagArr->SetArray(flagsBuf, nv, wantSave, delMethod);
+  ttkUtils::SetVoidArray(
+    flagArr, _outContoursFlags.data(), _outContoursFlags.size(), 1);
   flagArr->SetName("isMax");
   _outFld->GetPointData()->AddArray(flagArr);
 
   // ---- Output 1 (added in a later revision of the algo) ---- //
 
-  // re-using the variables from above
-  this->getOutputCentroids(coordsBuf, scalarsBuf, flagsBuf, nv);
-
   points = vtkSmartPointer<vtkPoints>::New();
   coordArr = vtkSmartPointer<vtkFloatArray>::New();
   coordArr->SetNumberOfComponents(3);
-  coordArr->SetArray(coordsBuf, nv * 3, wantSave, delMethod);
+  ttkUtils::SetVoidArray(
+    coordArr, _outCentroidsCoords.data(), _outCentroidsCoords.size(), 1);
   points->SetData(coordArr);
   _outPts->SetPoints(points);
 
   scalarArr = vtkFloatArray::New();
-  scalarArr->SetArray(scalarsBuf, nv, wantSave, delMethod);
+  ttkUtils::SetVoidArray(
+    scalarArr, _outCentroidsScalars.data(), _outCentroidsScalars.size(), 1);
   scalarArr->SetName(_scalarsName);
   _outPts->GetPointData()->AddArray(scalarArr);
 
   flagArr = vtkIntArray::New();
-  flagArr->SetArray(flagsBuf, nv, wantSave, delMethod);
+  ttkUtils::SetVoidArray(
+    flagArr, _outCentroidsFlags.data(), _outCentroidsFlags.size(), 1);
   flagArr->SetName("isMax");
   _outPts->GetPointData()->AddArray(flagArr);
 

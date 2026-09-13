@@ -2,8 +2,11 @@ NAME
   ttkPersistenceDiagram
 SOURCES
   ttkPersistenceDiagram.cpp
+  ttkPersistenceDiagramUtils.cpp
 HEADERS
   ttkPersistenceDiagram.h
+  ttkPersistenceDiagramUtils.h
 DEPENDS
   persistenceDiagram
   ttkAlgorithm
+  common

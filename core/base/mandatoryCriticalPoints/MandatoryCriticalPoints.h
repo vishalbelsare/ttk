@@ -22,6 +22,11 @@
 /// Computer Graphics Forum, 2014.
 ///
 /// \sa ttkMandatoryCriticalPoints.cpp %for a usage example.
+///
+/// \b Online \b examples: \n
+///   - <a
+///   href="https://topology-tool-kit.github.io/examples/uncertainStartingVortex/">
+///   Uncertain Starting Vortex example</a> \n
 
 #pragma once
 
@@ -80,7 +85,7 @@ namespace ttk {
     }
     /// Add a vertex, returns it's index
     int addVertex() {
-      Vertex newVertex;
+      Vertex const newVertex;
       vertexList_.push_back(newVertex);
       return (int)vertexList_.size() - 1;
     }
@@ -91,7 +96,7 @@ namespace ttk {
     /// Add an edge between the vertex start and end, returns it's index
     int addEdge(const int &start, const int &end) {
       if((start < (int)vertexList_.size()) && (end < (int)vertexList_.size())) {
-        Edge newEdge(start, end);
+        Edge const newEdge(start, end);
         edgeList_.push_back(newEdge);
         vertexList_[start].edgeIdx_.push_back(edgeList_.size() - 1);
         vertexList_[end].edgeIdx_.push_back(edgeList_.size() - 1);
@@ -115,7 +120,7 @@ namespace ttk {
   };
 
   /// Comparison between critical point pairs ( (Extremum,Saddle), dist(M,S) )
-  struct criticalPointPairComparaison {
+  struct criticalPointPairComparison {
     bool operator()(const std::pair<std::pair<int, int>, double> &left,
                     const std::pair<std::pair<int, int>, double> &right) const {
       return (left.second < right.second);
@@ -123,7 +128,7 @@ namespace ttk {
   };
 
   /// Comparison between mandatory saddles (Saddle id, Number of merged extrema)
-  struct mandatorySaddleComparaison {
+  struct mandatorySaddleComparison {
     bool operator()(const std::pair<int, int> &left,
                     const std::pair<int, int> &right) const {
       return (left.second < right.second);
@@ -132,7 +137,7 @@ namespace ttk {
 
   // TODO : template
   /// Comparison of the second member of a std::pair<int,double>
-  struct pairComparaison {
+  struct pairComparison {
     bool operator()(const std::pair<int, double> &left,
                     const std::pair<int, double> &right) const {
       return (left.second < right.second);
@@ -444,7 +449,7 @@ namespace ttk {
       return 0;
     }
 
-    inline int setDebugLevel(const int &debugLevel) {
+    inline int setDebugLevel(const int &debugLevel) override {
       Debug::setDebugLevel(debugLevel);
       upperJoinTree_.setDebugLevel(debugLevel);
       lowerJoinTree_.setDebugLevel(debugLevel);
@@ -500,7 +505,7 @@ namespace ttk {
       return 0;
     }
 
-    inline int setSoSoffsets(int *offsets = NULL) {
+    inline int setSoSoffsets(int *offsets = nullptr) {
       if((int)vertexSoSoffsets_.size() != vertexNumber_)
         vertexSoSoffsets_.resize(vertexNumber_);
       if(offsets) {
@@ -532,7 +537,7 @@ namespace ttk {
 
     /// Set the position (x,y,z) of the i-th point
     /// \param i Index of the vertex
-    /// \param point[3] Position (x,y,z)
+    /// \param point Position (x,y,z) (buffer of 3 doubles)
     /// \return Returns 0 upon success, negative values otherwise.
     inline int setVertexPosition(const int &i, const double point[3]) {
       if((int)vertexPositions_.size() != vertexNumber_)
@@ -685,7 +690,7 @@ namespace ttk {
       int superArcId = tree->getVertexSuperArcId(vertexId);
       // If superArcId == -1, it may be a leaf so look for the nearest super arc
       if(superArcId == -1) {
-        int nodeId = tree->getVertexNodeId(vertexId);
+        int const nodeId = tree->getVertexNodeId(vertexId);
         if(tree->getNode(nodeId)->getNumberOfUpSuperArcs()) {
           superArcId = tree->getNode(nodeId)->getUpSuperArcId(0);
         } else if(tree->getNode(nodeId)->getNumberOfDownSuperArcs()) {
@@ -997,9 +1002,9 @@ int ttk::MandatoryCriticalPoints::buildSubTrees(
   for(int i = 0; i < vertexNumber_; i++) {
     bool isLowerMin = true;
     bool isUpperMax = true;
-    SimplexId neighborNumber = triangulation.getVertexNeighborNumber(i);
+    SimplexId const neighborNumber = triangulation.getVertexNeighborNumber(i);
     for(SimplexId j = 0; j < neighborNumber; j++) {
-      SimplexId neighborId;
+      SimplexId neighborId{-1};
       triangulation.getVertexNeighbor(i, j, neighborId);
       if((lowerVertexScalars_[neighborId] < lowerVertexScalars_[i])
          || ((lowerVertexScalars_[neighborId] == lowerVertexScalars_[i])
@@ -1016,13 +1021,17 @@ int ttk::MandatoryCriticalPoints::buildSubTrees(
 #ifdef TTK_ENABLE_OPENMP
 #pragma omp critical
 #endif
-      { lowerMinimumList_.push_back(i); }
+      {
+        lowerMinimumList_.push_back(i);
+      }
     }
     if(isUpperMax) {
 #ifdef TTK_ENABLE_OPENMP
 #pragma omp critical
 #endif
-      { upperMaximumList_.push_back(i); }
+      {
+        upperMaximumList_.push_back(i);
+      }
     }
   }
 
@@ -1106,19 +1115,19 @@ int ttk::MandatoryCriticalPoints::computeSaddleComponent(
   idQueue.push(seedVertexId);
 
   while(!(idQueue.empty())) {
-    int vertexId = idQueue.front();
+    int const vertexId = idQueue.front();
     idQueue.pop();
     if(!isVisited[vertexId]) {
       isVisited[vertexId] = true;
-      double lowerValue = lowerVertexScalars_[vertexId];
-      double upperValue = upperVertexScalars_[vertexId];
+      double const lowerValue = lowerVertexScalars_[vertexId];
+      double const upperValue = upperVertexScalars_[vertexId];
       if((pointType == PointType::JoinSaddle && (!(lowerValue > upInterval))
           && (upperValue > lowInterval))
          || (pointType == PointType::SplitSaddle
              && (!(upperValue < lowInterval)) && (lowerValue < upInterval))) {
         componentVertexList.push_back(vertexId);
         // Neighbors
-        SimplexId neighborNumber
+        SimplexId const neighborNumber
           = triangulation.getVertexNeighborNumber(vertexId);
         for(SimplexId i = 0; i < neighborNumber; i++) {
           SimplexId neighborVertexId;

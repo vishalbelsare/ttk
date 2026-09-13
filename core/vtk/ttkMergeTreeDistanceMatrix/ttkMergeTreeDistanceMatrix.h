@@ -1,6 +1,7 @@
 /// \ingroup vtk
 /// \class ttkMergeTreeDistanceMatrix
 /// \author Mathieu Pont <mathieu.pont@lip6.fr>
+/// \author Florian Wetzels (wetzels@cs.uni-kl.de)
 /// \date 2021.
 ///
 /// \brief TTK VTK-filter that wraps the ttk::MergeTreeDistanceMatrix module.
@@ -17,16 +18,46 @@
 /// See the related ParaView example state files for usage examples within a
 /// VTK pipeline.
 ///
+/// \b Related \b publication \n
+/// "Wasserstein Distances, Geodesics and Barycenters of Merge Trees" \n
+/// Mathieu Pont, Jules Vidal, Julie Delon, Julien Tierny.\n
+/// Proc. of IEEE VIS 2021.\n
+/// IEEE Transactions on Visualization and Computer Graphics, 2021
+///
+/// \b Related \b publication \n
+/// "Edit Distance between Merge Trees" \n
+/// R. Sridharamurthy, T. B. Masood, A. Kamakshidasan and V. Natarajan. \n
+/// IEEE Transactions on Visualization and Computer Graphics, 2020.
+///
+/// \b Related \b publication \n
+/// "Branch Decomposition-Independent Edit Distances for Merge Trees." \n
+/// Florian Wetzels, Heike Leitte, and Christoph Garth. \n
+/// Computer Graphics Forum, 2022.
+///
+/// \b Related \b publication \n
+/// "A Deformation-based Edit Distance for Merge Trees" \n
+/// Florian Wetzels, Christoph Garth. \n
+/// TopoInVis 2022.
+///
 /// \sa ttk::MergeTreeDistanceMatrix
 /// \sa ttkAlgorithm
 ///
 /// \b Online \b examples: \n
 ///   - <a
+///   href="https://topology-tool-kit.github.io/examples/mergeTreeBarycenter_branchMapping/">Merge
+///   Tree Branch Mapping example</a> \n
+///   - <a
+///   href="https://topology-tool-kit.github.io/examples/mergeTreeBarycenter_pathMapping/">Merge
+///   Tree Path Mapping example</a> \n
+///   - <a
 ///   href="https://topology-tool-kit.github.io/examples/mergeTreeClustering/">Merge
 ///   Tree Clustering example</a> \n
-
-#ifndef _TTKMERGETREEDISTANCEMATRIX_
-#define _TTKMERGETREEDISTANCEMATRIX_
+///   - <a
+///   href="https://topology-tool-kit.github.io/examples/mergeTreePGA/">Merge
+///   Tree Principal Geodesic Analysis example</a> \n
+///   - <a
+///   href="https://topology-tool-kit.github.io/examples/persistenceDiagramPGA/">
+///   Persistence Diagram Principal Geodesic Analysis example</a> \n
 
 #pragma once
 
@@ -36,6 +67,8 @@
 // VTK Includes
 #include <ttkAlgorithm.h>
 #include <vtkMultiBlockDataSet.h>
+#include <vtkSmartPointer.h>
+#include <vtkUnstructuredGrid.h>
 
 // TTK Base Includes
 #include <MergeTreeDistanceMatrix.h>
@@ -52,6 +85,12 @@ private:
    */
   // Execution Options
   int Backend = 0;
+  bool oldBD = branchDecomposition_;
+  bool oldNW = normalizedWasserstein_;
+  bool oldKS = keepSubtree_;
+
+  bool UseFieldDataParameters = false;
+  int DiagramPairTypes = 0;
 
 public:
   /**
@@ -99,24 +138,39 @@ public:
     return persistenceThreshold_;
   }
 
-  void SetUseMinMaxPair(bool useMinMaxPair) {
-    useMinMaxPair_ = useMinMaxPair;
-    Modified();
-  }
-  bool SetUseMinMaxPair() {
-    return useMinMaxPair_;
-  }
-
-  void SetDeleteMultiPersPairs(bool deleteMultiPersPairs) {
-    deleteMultiPersPairs_ = deleteMultiPersPairs;
+  void SetDeleteMultiPersPairs(bool doDelete) {
+    deleteMultiPersPairs_ = doDelete;
     Modified();
   }
   bool SetDeleteMultiPersPairs() {
     return deleteMultiPersPairs_;
   }
 
+  void SetBranchMetric(int m) {
+    branchMetric_ = m;
+    Modified();
+  }
+
+  void SetPathMetric(int m) {
+    pathMetric_ = m;
+    Modified();
+  }
+
   // Execution Options
-  vtkSetMacro(Backend, int);
+  void SetBackend(int newBackend) {
+    if(Backend == 2) { // Custom
+      oldBD = branchDecomposition_;
+      oldNW = normalizedWasserstein_;
+      oldKS = keepSubtree_;
+    }
+    if(newBackend == 2) { // Custom
+      branchDecomposition_ = oldBD;
+      normalizedWasserstein_ = oldNW;
+      keepSubtree_ = oldKS;
+    }
+    Backend = newBackend;
+    Modified();
+  }
   vtkGetMacro(Backend, int);
 
   void SetAssignmentSolver(int assignmentSolver) {
@@ -151,13 +205,22 @@ public:
     return keepSubtree_;
   }
 
-  void SetDistanceSquared(bool distanceSquared) {
-    distanceSquared_ = distanceSquared;
+  void SetDistanceSquaredRoot(bool distanceSquaredRoot) {
+    distanceSquaredRoot_ = distanceSquaredRoot;
     Modified();
   }
-  int GetDistanceSquared() {
-    return distanceSquared_;
+  int GetDistanceSquaredRoot() {
+    return distanceSquaredRoot_;
   }
+
+  vtkSetMacro(UseFieldDataParameters, bool);
+  vtkGetMacro(UseFieldDataParameters, bool);
+
+  vtkSetMacro(mixtureCoefficient_, double);
+  vtkGetMacro(mixtureCoefficient_, double);
+
+  vtkSetMacro(DiagramPairTypes, int);
+  vtkGetMacro(DiagramPairTypes, int);
 
   /**
    * This static method and the macro below are VTK conventions on how to
@@ -196,7 +259,6 @@ protected:
 
   template <class dataType>
   int run(vtkInformationVector *outputVector,
-          std::vector<vtkMultiBlockDataSet *> inputTrees);
+          std::vector<vtkSmartPointer<vtkMultiBlockDataSet>> &inputTrees,
+          std::vector<vtkSmartPointer<vtkMultiBlockDataSet>> &inputTrees2);
 };
-
-#endif

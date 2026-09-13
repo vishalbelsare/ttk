@@ -11,3 +11,5 @@ HEADERS
   ttkMacros.h
 DEPENDS
   triangulation
+  identifiers
+  arrayPreconditioning

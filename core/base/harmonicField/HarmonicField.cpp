@@ -1,5 +1,4 @@
 #include <HarmonicField.h>
-#include <Laplacian.h>
 #include <set>
 
 #ifdef TTK_ENABLE_EIGEN
@@ -115,14 +114,14 @@ int ttk::HarmonicField::execute(const TriangulationType &triangulation,
   }
 
   // unique constraint number
-  size_t uniqueConstraintNumber = idValues.size();
+  size_t const uniqueConstraintNumber = idValues.size();
 
   // graph laplacian of current mesh
   SpMat lap;
   if(useCotanWeights) {
-    Laplacian::cotanWeights<T>(lap, triangulation);
+    Laplacian::cotanWeights<T>(lap, *this, triangulation);
   } else {
-    Laplacian::discreteLaplacian<T>(lap, triangulation);
+    Laplacian::discreteLaplacian<T>(lap, *this, triangulation);
   }
 
   // constraints vector

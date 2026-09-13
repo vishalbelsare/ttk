@@ -54,8 +54,8 @@ int ttkPointDataConverter::convert(vtkDataArray *inputData,
                                    vtkDataSet *output) {
   const auto input_ptr
     = static_cast<InputFieldType *>(ttkUtils::GetVoidPointer(inputData));
-  int n = inputData->GetNumberOfComponents();
-  vtkIdType N = inputData->GetNumberOfTuples();
+  int const n = inputData->GetNumberOfComponents();
+  vtkIdType const N = inputData->GetNumberOfTuples();
 
   vtkNew<OutputVTKArrayType> outputData;
   outputData->SetName(inputData->GetName());
@@ -80,8 +80,10 @@ int ttkPointDataConverter::convert(vtkDataArray *inputData,
       }
     }
   } else
-    for(vtkIdType i = 0; i < N * n; ++i)
+    for(vtkIdType i = 0; i < N * n; ++i) {
+      // NOLINTNEXTLINE (bugprone-signed-char-misuse)
       output_ptr[i] = (OutputFieldType)input_ptr[i];
+    }
 
   output->GetPointData()->AddArray(outputData);
 
@@ -104,7 +106,7 @@ int ttkPointDataConverter::RequestData(vtkInformation *ttkNotUsed(request),
   }
   auto InputType = inputScalarField->GetDataType();
 
-  bool oldUseNormalization{UseNormalization};
+  bool const oldUseNormalization{UseNormalization};
   if(OutputType == SupportedType::Float or OutputType == SupportedType::Double)
     UseNormalization = false;
 

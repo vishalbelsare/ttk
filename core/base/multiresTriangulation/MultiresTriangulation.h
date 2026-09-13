@@ -27,7 +27,7 @@ namespace ttk {
 
   public:
     MultiresTriangulation();
-    ~MultiresTriangulation();
+    ~MultiresTriangulation() override;
 
     SimplexId getVertexNeighborAtDecimation(const SimplexId &vertexId,
                                             const int &localNeighborId,
@@ -810,8 +810,7 @@ namespace ttk {
       triangulation_ = triangulation;
       if(triangulation_) {
         dimensionality_ = triangulation_->getDimensionality();
-        std::vector<int> gridDim(3);
-        triangulation_->getGridDimensions(gridDim);
+        const auto &gridDim{triangulation_->getGridDimensions()};
         for(int i = 0; i < 3; i++) {
           gridDimensions_[i] = gridDim[i];
           nbvoxels_[i] = gridDimensions_[i] - 1;
@@ -820,7 +819,7 @@ namespace ttk {
         if(dimensionality_ == 2) {
           if(gridDimensions_[0] == 1) {
             Di_ = 1;
-            Di_ = 2;
+            Dj_ = 2;
           } else if(gridDimensions_[1] == 1) {
             Di_ = 0;
             Dj_ = 2;
@@ -925,7 +924,7 @@ namespace ttk {
       return dimensions;
     }
 
-    ImplicitTriangulation *getTriangulation() {
+    ImplicitTriangulation *getTriangulation() const {
       return triangulation_;
     }
 
@@ -1037,7 +1036,7 @@ namespace ttk {
 
 inline bool ttk::MultiresTriangulation::areVerticesNeighbors(
   const SimplexId vertexId0, const SimplexId vertexId1) const {
-  SimplexId neighborNumber = getVertexNeighborNumber(vertexId0);
+  const SimplexId neighborNumber = getVertexNeighborNumber(vertexId0);
   for(SimplexId i = 0; i < neighborNumber; i++) {
     SimplexId neighborId;
     getVertexNeighbor(vertexId0, i, neighborId);

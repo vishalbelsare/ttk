@@ -16,7 +16,11 @@
 ///
 /// \sa ttk::Triangulation
 /// \sa ttkManifoldCheck.cpp %for a usage example.
-
+///
+/// \b Online \b examples: \n
+///   - <a
+///   href="https://topology-tool-kit.github.io/examples/manifoldCheck/">Manifold
+///   check example</a> \n
 #pragma once
 
 // base code includes
@@ -30,7 +34,7 @@ namespace ttk {
   public:
     ManifoldCheck();
 
-    ~ManifoldCheck();
+    ~ManifoldCheck() override;
 
     /// Execute the package.
     template <class triangulationType = AbstractTriangulation>
@@ -118,7 +122,7 @@ int ttk::ManifoldCheck::execute(const triangulationType *triangulation) const {
     return -1;
 #endif
 
-  SimplexId vertexNumber = triangulation->getNumberOfVertices();
+  SimplexId const vertexNumber = triangulation->getNumberOfVertices();
 
   if(vertexLinkComponentNumber_) {
 
@@ -134,7 +138,7 @@ int ttk::ManifoldCheck::execute(const triangulationType *triangulation) const {
 
   if((edgeLinkComponentNumber_) && (triangulation->getDimensionality() >= 2)) {
 
-    SimplexId edgeNumber = triangulation->getNumberOfEdges();
+    SimplexId const edgeNumber = triangulation->getNumberOfEdges();
     edgeLinkComponentNumber_->resize(edgeNumber);
 
 #ifdef TTK_ENABLE_OPENMP
@@ -148,7 +152,7 @@ int ttk::ManifoldCheck::execute(const triangulationType *triangulation) const {
   if((triangleLinkComponentNumber_)
      && (triangulation->getDimensionality() == 3)) {
 
-    SimplexId triangleNumber = triangulation->getNumberOfTriangles();
+    SimplexId const triangleNumber = triangulation->getNumberOfTriangles();
     triangleLinkComponentNumber_->resize(triangleNumber);
 
 #ifdef TTK_ENABLE_OPENMP
@@ -172,7 +176,7 @@ template <class triangulationType>
 int ttk::ManifoldCheck::vertexManifoldCheck(
   const triangulationType *triangulation, const SimplexId &vertexId) const {
 
-  SimplexId linkSize = triangulation->getVertexLinkNumber(vertexId);
+  SimplexId const linkSize = triangulation->getVertexLinkNumber(vertexId);
 
   if(triangulation->getDimensionality() == 1)
     return linkSize;
@@ -333,7 +337,7 @@ template <class triangulationType>
 int ttk::ManifoldCheck::edgeManifoldCheck(
   const triangulationType *triangulation, const SimplexId &edgeId) const {
 
-  SimplexId linkSize = triangulation->getEdgeLinkNumber(edgeId);
+  SimplexId const linkSize = triangulation->getEdgeLinkNumber(edgeId);
 
   if(triangulation->getDimensionality() == 2)
     return linkSize;

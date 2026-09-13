@@ -13,11 +13,11 @@ using namespace cf;
 
 // Constructors & destructors
 
-MergeTree::MergeTree(Params *const params,
-                     Scalars *const scalars,
+MergeTree::MergeTree(std::shared_ptr<Params> params,
+                     std::shared_ptr<Scalars> scalars,
                      TreeType type,
                      idPartition part)
-  : params_(params), scalars_(scalars) {
+  : params_(std::move(params)), scalars_(std::move(scalars)) {
   if(type == TreeType::Join) {
     this->setDebugMsgPrefix("JoinTree");
   } else if(type == TreeType::Split) {
@@ -31,10 +31,9 @@ MergeTree::MergeTree(Params *const params,
   treeData_.partition = part;
 }
 
-MergeTree::~MergeTree() {
-  // all is automatically destroyed in treedata
-  // do not touch pointers
-}
+MergeTree::~MergeTree() = default;
+// all is automatically destroyed in treedata
+// do not touch pointers
 
 // }
 // Process
@@ -174,7 +173,7 @@ void MergeTree::parallelUpdateSegmentation(const bool ttkNotUsed(ct)) {
 }
 
 void MergeTree::parallelInitNodeValence(const int nbThreadValence) {
-  // cout << "SENTINEL : Parallel Init Node Valence " << endl;
+  // std::cout << "SENTINEL : Parallel Init Node Valence " << std::endl;
   const auto &nbNodes = getNumberOfNodes();
 
 #ifdef TTK_ENABLE_OPENMP
@@ -216,12 +215,13 @@ idSuperArc MergeTree::openSuperArc(const idNode &downNodeId,
                                    const bool overlapA) {
 #ifndef TTK_ENABLE_KAMIKAZE
   if(downNodeId >= getNumberOfNodes()) {
-    cout << "[Merge Tree] openSuperArc on a inexisting node !" << endl;
+    std::cout << "[Merge Tree] openSuperArc on a inexisting node !"
+              << std::endl;
     return -2;
   }
 #endif
 
-  idSuperArc newSuperArcId = treeData_.superArcs.size();
+  const idSuperArc newSuperArcId = treeData_.superArcs.size();
   treeData_.superArcs.emplace_back(downNodeId, nullNodes, overlapB, overlapA,
                                    treeData_.partition, treeData_.partition);
   treeData_.nodes[downNodeId].addUpSuperArcId(newSuperArcId);
@@ -236,7 +236,7 @@ idSuperArc MergeTree::makeSuperArc(const idNode &downNodeId,
                                    const bool overlapA,
                                    pair<SimplexId, bool> *vertexList,
                                    SimplexId vertexSize) {
-  idSuperArc newSuperArcId = treeData_.superArcs.size();
+  const idSuperArc newSuperArcId = treeData_.superArcs.size();
 
   if(downNodeId != upNodeId) {
     treeData_.superArcs.emplace_back(downNodeId, upNodeId, overlapB, overlapA,
@@ -266,12 +266,14 @@ void MergeTree::closeSuperArc(const idSuperArc &superArcId,
 #ifndef TTK_ENABLE_KAMIKAZE
 
   if(superArcId >= getNumberOfSuperArcs()) {
-    cout << "[Merge Tree] closeSuperArc on a inexisting arc !" << endl;
+    std::cout << "[Merge Tree] closeSuperArc on a inexisting arc !"
+              << std::endl;
     return;
   }
 
   if(upNodeId >= getNumberOfNodes()) {
-    cout << "[Merge Tree] closeOpenedArc on a inexisting node !" << endl;
+    std::cout << "[Merge Tree] closeOpenedArc on a inexisting node !"
+              << std::endl;
     return;
   }
 
@@ -328,7 +330,7 @@ SimplexId MergeTree::insertNodeAboveSeed(const idSuperArc &arc,
       // need to insert node
       const idNode &newNodeId = makeNode(stitchVert);
       Node *newNode = getNode(newNodeId);
-      // for the instert node to works
+      // for the insert node to works
       updateCorrespondingArc(stitchVert, arc);
       insertNode(newNode, false);
       newNode->setUpValence(1);
@@ -517,8 +519,8 @@ void MergeTree::hideNode(const idNode &node) {
 idNode MergeTree::makeNode(const SimplexId &vertexId, const SimplexId &term) {
 #ifndef TTK_ENABLE_KAMIKAZE
   if(vertexId < 0 || vertexId >= scalars_->size) {
-    cout << "[Merge Tree] make node, wrong vertex :" << vertexId << " on "
-         << scalars_->size << endl;
+    std::cout << "[Merge Tree] make node, wrong vertex :" << vertexId << " on "
+              << scalars_->size << std::endl;
     return -1;
   }
 #endif
@@ -527,7 +529,7 @@ idNode MergeTree::makeNode(const SimplexId &vertexId, const SimplexId &term) {
     return getCorrespondingNodeId(vertexId);
   }
 
-  SimplexId size_base = (SimplexId)treeData_.nodes.size();
+  const SimplexId size_base = (SimplexId)treeData_.nodes.size();
   treeData_.nodes.emplace_back(vertexId, term);
   updateCorrespondingNode(vertexId, size_base);
 
@@ -538,9 +540,11 @@ idNode MergeTree::makeNode(const Node *const n, const SimplexId &term) {
   return makeNode(n->getVertexId(), term);
 }
 
-void MergeTree::delNode(const idNode &node,
-                        const pair<SimplexId, bool> *markVertices,
-                        const SimplexId &nbMark) {
+void MergeTree::delNode(
+  const idNode &node,
+  std::list<std::vector<std::pair<SimplexId, bool>>> &storage,
+  const pair<SimplexId, bool> *markVertices,
+  const SimplexId &nbMark) {
   Node *mainNode = getNode(node);
 
   if(mainNode->getNumberOfUpSuperArcs() == 0) {
@@ -551,19 +555,19 @@ void MergeTree::delNode(const idNode &node,
 
 #ifndef TTK_ENABLE_KAMIKAZE
     if(mainNode->getNumberOfDownSuperArcs() != 1) {
-      cout << endl << "[MergeTree]:delNode won't delete ";
-      cout << mainNode->getVertexId() << " (root) with ";
-      cout << static_cast<unsigned>(mainNode->getNumberOfDownSuperArcs())
-           << " down ";
-      cout << static_cast<unsigned>(mainNode->getNumberOfUpSuperArcs())
-           << " up ";
-      cout << " partition : " << static_cast<unsigned>(treeData_.partition)
-           << endl;
+      std::cout << std::endl << "[MergeTree]:delNode won't delete ";
+      std::cout << mainNode->getVertexId() << " (root) with ";
+      std::cout << static_cast<unsigned>(mainNode->getNumberOfDownSuperArcs())
+                << " down ";
+      std::cout << static_cast<unsigned>(mainNode->getNumberOfUpSuperArcs())
+                << " up ";
+      std::cout << " partition : " << static_cast<unsigned>(treeData_.partition)
+                << std::endl;
       return;
     }
 #endif
 
-    idSuperArc downArc = mainNode->getDownSuperArcId(0);
+    const idSuperArc downArc = mainNode->getDownSuperArcId(0);
     Node *downNode = getNode(treeData_.superArcs[downArc].getDownNodeId());
     downNode->removeUpSuperArc(downArc);
     mainNode->clearDownSuperArcs();
@@ -579,8 +583,8 @@ void MergeTree::delNode(const idNode &node,
     // We delete the upArc,
     // if there is a down arc, we reattach it to the upNode
 
-    idSuperArc upArc = mainNode->getUpSuperArcId(0);
-    idNode upId = treeData_.superArcs[upArc].getUpNodeId();
+    const idSuperArc upArc = mainNode->getUpSuperArcId(0);
+    const idNode upId = treeData_.superArcs[upArc].getUpNodeId();
     Node *upNode = getNode(upId);
 
     upNode->removeDownSuperArc(upArc);
@@ -595,7 +599,7 @@ void MergeTree::delNode(const idNode &node,
       if(markVertices != nullptr) {
         // In case the two segmenation are already contiguous,
         // it means we are removing a regular node that was inserted in the
-        // tree only for the combinaison.
+        // tree only for the combinations.
         if((treeData_.superArcs[downArc].getVertList()
             + treeData_.superArcs[downArc].getVertSize())
            == treeData_.superArcs[upArc].getVertList()) {
@@ -630,8 +634,8 @@ void MergeTree::delNode(const idNode &node,
           const auto *upSegm = treeData_.superArcs[upArc].getVertList();
           const auto *downSegm = treeData_.superArcs[downArc].getVertList();
 
-          pair<SimplexId, bool> *newSegmentation
-            = new pair<SimplexId, bool>[upSize + downSize];
+          storage.emplace_back(upSize + downSize);
+          pair<SimplexId, bool> *newSegmentation = storage.back().data();
 
           for(SimplexId i = 0; i < downSize; i++) {
             newSegmentation[i] = downSegm[i];
@@ -639,23 +643,6 @@ void MergeTree::delNode(const idNode &node,
 
           for(SimplexId i = 0; i < upSize; i++) {
             newSegmentation[i + downSize] = upSegm[i];
-          }
-
-          // avoid some memory leaks
-          if(treeData_.superArcs[downArc].getSegmentation().size()) {
-            const auto &downVect
-              = treeData_.superArcs[downArc].getSegmentation().data();
-            if(downSegm < downVect || downSegm >= downVect + downSize) {
-              delete[] downSegm;
-            }
-          }
-
-          if(treeData_.superArcs[upArc].getSegmentation().size()) {
-            const auto &upVect
-              = treeData_.superArcs[upArc].getSegmentation().data();
-            if(upSegm < upVect || upSegm >= upVect + upSize) {
-              delete[] upSegm;
-            }
           }
 
           treeData_.superArcs[downArc].setVertList(newSegmentation);
@@ -739,7 +726,7 @@ idSuperArc MergeTree::insertNode(Node *node, const bool segment) {
                           return isLower(a.first, b.first);
                         });
 
-    SimplexId newNodePos = newNodePosPtr - tmpSA->getVertList();
+    const SimplexId newNodePos = newNodePosPtr - tmpSA->getVertList();
 
     getSuperArc(newSA)->setVertList(newNodePosPtr);
     getSuperArc(newSA)->setVertSize(tmpSA->getVertSize() - newNodePos);
@@ -762,7 +749,7 @@ idSuperArc MergeTree::reverseInsertNode(Node *node, const bool segment) {
     Node *myNode = vertex2Node(node->getVertexId());
     // If it has been hidden / replaced we need to re-make it
     if(myNode->isHidden()) {
-      cout << "reverse insert don t  deal with hidden" << endl;
+      std::cout << "reverse insert don t  deal with hidden" << std::endl;
     } else
       return nullSuperArc;
   }
@@ -813,7 +800,7 @@ idSuperArc MergeTree::reverseInsertNode(Node *node, const bool segment) {
                           return isLower(a.first, b.first);
                         });
 
-    SimplexId newNodePos = newNodePosPtr - tmpSA->getVertList();
+    const SimplexId newNodePos = newNodePosPtr - tmpSA->getVertList();
 
     getSuperArc(newSA)->setVertList(tmpSA->getVertList());
     getSuperArc(newSA)->setVertSize(newNodePos);
@@ -963,7 +950,8 @@ idSuperArc MergeTree::hideAndClearLeadingTo(const idNode &baseNode,
       while(p != baseNode && getNode(p)->getUpValence()) {
         // SHOULD HAVE ONLY ONE ARC
         if(getNode(p)->getUpValence() != 1)
-          cout << "Noise with up valence ! (hide&clear Leading to)" << endl;
+          std::cout << "Noise with up valence ! (hide&clear Leading to)"
+                    << std::endl;
 
         a = getNode(p)->getUpSuperArcId(0);
         p = getSuperArc(a)->getUpNodeId();
@@ -987,41 +975,41 @@ void MergeTree::printTree2() {
 #pragma omp critical
 #endif
   {
-    cout << "Partition : " << static_cast<unsigned>(treeData_.partition)
-         << endl;
+    std::cout << "Partition : " << static_cast<unsigned>(treeData_.partition)
+              << std::endl;
 
-    cout << "Nodes----------" << endl;
+    std::cout << "Nodes----------" << std::endl;
     for(idNode nid = 0; nid < getNumberOfNodes(); nid++) {
       const Node &n = treeData_.nodes[nid];
       if(n.isVisible()) {
-        cout << printNode(nid) << endl;
+        std::cout << printNode(nid) << std::endl;
       }
     }
 
-    cout << "Arcs-----------" << endl;
+    std::cout << "Arcs-----------" << std::endl;
     for(idSuperArc said = 0; said < getNumberOfSuperArcs(); ++said) {
       const SuperArc &sa = treeData_.superArcs[said];
       if(sa.isVisible()) {
-        cout << printArc(said) << endl;
+        std::cout << printArc(said) << std::endl;
       }
     }
 
-    cout << "Leaves" << endl;
+    std::cout << "Leaves" << std::endl;
     for(const auto &l : treeData_.leaves)
-      cout << " " << treeData_.nodes[l].getVertexId();
-    cout << endl;
+      std::cout << " " << treeData_.nodes[l].getVertexId();
+    std::cout << std::endl;
 
-    cout << "Roots" << endl;
+    std::cout << "Roots" << std::endl;
     for(const auto &r : treeData_.roots)
-      cout << " " << treeData_.nodes[r].getVertexId();
-    cout << endl;
+      std::cout << " " << treeData_.nodes[r].getVertexId();
+    std::cout << std::endl;
   }
 }
 
 // Clone
-MergeTree *MergeTree::clone() const {
-  MergeTree *newMT
-    = new MergeTree(params_, scalars_, treeData_.treeType, treeData_.partition);
+std::shared_ptr<MergeTree> MergeTree::clone() const {
+  auto newMT = std::make_shared<MergeTree>(
+    params_, scalars_, treeData_.treeType, treeData_.partition);
 
   newMT->treeData_.superArcs = treeData_.superArcs;
   newMT->treeData_.nodes = treeData_.nodes;
@@ -1093,7 +1081,8 @@ void MergeTree::markThisArc(vector<ExtendedUnionFind *> &ufArray,
     // Parent have never been seen : recopy UF
     ufArray[parentNodeId] = ufArray[curNodeId]->find();
     ufArray[parentNodeId]->find()->setOrigin(curSegmenSize);
-    // cout << "will merge " << getNode(curNodeId)->getVertexId() << endl;
+    // std::cout << "will merge " << getNode(curNodeId)->getVertexId() <<
+    // std::endl;
   } else {
     // The parent have already been visited : merge UF and segmentation
     const auto &oldSegmentationSize
@@ -1101,13 +1090,13 @@ void MergeTree::markThisArc(vector<ExtendedUnionFind *> &ufArray,
     ExtendedUnionFind::makeUnion(
       ufArray[curNodeId]->find(), ufArray[parentNodeId]->find())
       ->setOrigin(oldSegmentationSize + curSegmenSize);
-    // cout << "Union on " << getNode(parentNodeId)->getVertexId();
-    // cout << " from " << getNode(curNodeId)->getVertexId() << endl;
+    // std::cout << "Union on " << getNode(parentNodeId)->getVertexId();
+    // std::cout << " from " << getNode(curNodeId)->getVertexId() << std::endl;
   }
 
   // The last parentNode is the root of the subtree
-  // cout << "for " << getNode(curNodeId)->getVertexId() << " set root " <<
-  // getNode(parentNodeId)->getVertexId() << endl;
+  // std::cout << "for " << getNode(curNodeId)->getVertexId() << " set root " <<
+  // getNode(parentNodeId)->getVertexId() << std::endl;
   ufArray[parentNodeId]->find()->setData(-((ufDataType)parentNodeId) - 1);
 }
 
@@ -1130,8 +1119,8 @@ idSuperArc MergeTree::newUpArc(const idNode &curNodeId,
     }
   }
 
-  // cout << "node " << getNode(curNodeId)->getVertexId() << " have no up arc to
-  // take" << endl;
+  // std::cout << "node " << getNode(curNodeId)->getVertexId() << " have no up
+  // arc to take" << std::endl;
   return keepArc;
 }
 
@@ -1154,8 +1143,8 @@ idSuperArc MergeTree::newDownArc(const idNode &curNodeId,
     }
   }
 
-  // cout << "node " << printNode(curNodeId) << " have no down arc to take" <<
-  // endl;
+  // std::cout << "node " << printNode(curNodeId) << " have no down arc to take"
+  // << std::endl;
   return keepArc;
 }
 
@@ -1172,14 +1161,15 @@ tuple<idNode, idNode, SimplexId> MergeTree::createReceptArc(
   idNode upNode = root;
 
   if(DEBUG) {
-    cout << " create receptarc for root : " << printNode(root) << endl;
-    cout << " custom valence : " << valenceOffsets[root].first;
-    cout << " + " << valenceOffsets[root].second << endl;
+    std::cout << " create receptarc for root : " << printNode(root)
+              << std::endl;
+    std::cout << " custom valence : " << valenceOffsets[root].first;
+    std::cout << " + " << valenceOffsets[root].second << std::endl;
   }
 
   // descend in the tree until valence is not 2
   SimplexId segmentationSize = ufRoot->find()->getOrigin();
-  // cout << "init size " << segmentationSize << endl;
+  // std::cout << "init size " << segmentationSize << std::endl;
 
   // We need a valence of 2 (we don't want to cross a futur saddle
   // But we want to avoid up && down = root
@@ -1200,8 +1190,9 @@ tuple<idNode, idNode, SimplexId> MergeTree::createReceptArc(
     const idNode tmpUp = getSuperArc(downArc)->getUpNodeId();
 
     if(DEBUG) {
-      cout << "change down to " << getNode(downNode)->getVertexId() << endl;
-      cout << " new segmentation : " << segmentationSize << endl;
+      std::cout << "change down to " << getNode(downNode)->getVertexId()
+                << std::endl;
+      std::cout << " new segmentation : " << segmentationSize << std::endl;
     }
 
     // UF
@@ -1219,9 +1210,10 @@ tuple<idNode, idNode, SimplexId> MergeTree::createReceptArc(
   }
 
   if(DEBUG) {
-    cout << " continue receptarc for root : " << printNode(root) << endl;
-    cout << " custom valence : " << valenceOffsets[root].first;
-    cout << " + " << valenceOffsets[root].second << endl;
+    std::cout << " continue receptarc for root : " << printNode(root)
+              << std::endl;
+    std::cout << " custom valence : " << valenceOffsets[root].first;
+    std::cout << " + " << valenceOffsets[root].second << std::endl;
   }
 
   // for a node to be regular, it must have a down valence = 1 but
@@ -1238,8 +1230,9 @@ tuple<idNode, idNode, SimplexId> MergeTree::createReceptArc(
     const idNode tmpDown = getSuperArc(upArc)->getDownNodeId();
 
     if(DEBUG) {
-      cout << "change up to " << getNode(upNode)->getVertexId() << endl;
-      cout << " new segmentation : " << segmentationSize << endl;
+      std::cout << "change up to " << getNode(upNode)->getVertexId()
+                << std::endl;
+      std::cout << " new segmentation : " << segmentationSize << std::endl;
     }
 
     if(ufArray[upNode]) {
@@ -1256,12 +1249,12 @@ tuple<idNode, idNode, SimplexId> MergeTree::createReceptArc(
   }
 
   // if upNode == downNode, take one none merging arc randomly
-  // (this case is possbile if several degenerate node are following)
+  // (this case is possible if several degenerate node are following)
   if(upNode == downNode) {
     // several degen. nodes adjacent
     // Prefer down for JT / ST
-    idSuperArc tmpDown = newDownArc(downNode, ufArray);
-    idSuperArc tmpUp = newUpArc(upNode, ufArray);
+    const idSuperArc tmpDown = newDownArc(downNode, ufArray);
+    const idSuperArc tmpUp = newUpArc(upNode, ufArray);
 
     if(tmpDown == nullSuperArc) {
       upNode = getSuperArc(tmpUp)->getUpNodeId();
@@ -1288,7 +1281,8 @@ tuple<idNode, idNode, SimplexId> MergeTree::createReceptArc(
     if(tmpUp != nullSuperArc)
       segmentationSize += getSuperArc(tmpUp)->getVertSize() + 2;
 
-    // cout << " special : new segmentation : " << segmentationSize << endl;
+    // std::cout << " special : new segmentation : " << segmentationSize <<
+    // std::endl;
   }
 
   return make_tuple(downNode, upNode, segmentationSize);
@@ -1302,12 +1296,12 @@ tuple<idNode, idNode, SimplexId> MergeTree::createReceptArc(
 
 // Operators
 
-ostream &ttk::cf::operator<<(ostream &o, SuperArc const &a) {
+std::ostream &ttk::cf::operator<<(std::ostream &o, ttk::cf::SuperArc const &a) {
   o << a.getDownNodeId() << " <>> " << a.getUpNodeId();
   return o;
 }
 
-ostream &ttk::cf::operator<<(ostream &o, Node const &n) {
+std::ostream &ttk::cf::operator<<(std::ostream &o, ttk::cf::Node const &n) {
   o << n.getNumberOfDownSuperArcs() << " .-. " << n.getNumberOfUpSuperArcs();
   return o;
 }

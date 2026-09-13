@@ -1,15 +1,22 @@
 #include <ttkUtils.h>
 
-#include <limits>
-#include <vtkStringArray.h>
-
 #include <vtkAbstractArray.h>
 #include <vtkCellArray.h>
 #include <vtkDoubleArray.h>
 #include <vtkFieldData.h>
+#include <vtkIdTypeArray.h>
+#include <vtkNew.h>
 #include <vtkPoints.h>
+#include <vtkPolyData.h>
 #include <vtkSmartPointer.h>
+#include <vtkStringArray.h>
+#include <vtkUnstructuredGrid.h>
 
+#include <iostream>
+
+#ifdef TTK_ENABLE_MPI_TIME
+#include <mpi.h>
+#endif
 int ttkUtils::replaceVariable(const std::string &iString,
                               vtkFieldData *fieldData,
                               std::string &oString,
@@ -19,8 +26,8 @@ int ttkUtils::replaceVariable(const std::string &iString,
   bool varIndexDefined = false;
 
   // Check if varIndex is specified
-  size_t indexDelimiter0 = iString.find('[');
-  size_t indexDelimiter1 = iString.find(']');
+  size_t const indexDelimiter0 = iString.find('[');
+  size_t const indexDelimiter1 = iString.find(']');
   if(indexDelimiter0 != std::string::npos
      && indexDelimiter1 != std::string::npos) {
     if(indexDelimiter0 > indexDelimiter1
@@ -43,9 +50,9 @@ int ttkUtils::replaceVariable(const std::string &iString,
     return 0;
   }
 
-  size_t n = column->GetNumberOfTuples();
-  size_t m = column->GetNumberOfComponents();
-  int s = n * m;
+  size_t const n = column->GetNumberOfTuples();
+  size_t const m = column->GetNumberOfComponents();
+  int const s = n * m;
 
   if(!varIndexDefined) {
     if(s > 0) {
@@ -74,7 +81,7 @@ int ttkUtils::replaceVariables(const std::string &iString,
   while(oString.find('{') != std::string::npos
         && oString.find('}') != std::string::npos) {
     size_t o = oString.find('{');
-    size_t c = oString.find('}');
+    size_t const c = oString.find('}');
     // {...{....{...}...}..}
     // |            |
     // o            c
@@ -88,7 +95,7 @@ int ttkUtils::replaceVariables(const std::string &iString,
     // {...{....{var}...}..}
     //          |   |
     //          o   c
-    std::string var = oString.substr(o + 1, c - 1 - o);
+    std::string const var = oString.substr(o + 1, c - 1 - o);
 
     std::string rVar;
     if(!replaceVariable(var, fieldData, rVar, errorMsg))
@@ -131,7 +138,7 @@ int ttkUtils::stringListToDoubleVector(const std::string &iString,
   if(!ttkUtils::stringListToVector(iString, stringVector))
     return 0;
 
-  size_t n = stringVector.size();
+  size_t const n = stringVector.size();
   v.resize(n);
   // try {
   for(size_t i = 0; i < n; i++)
@@ -145,17 +152,17 @@ int ttkUtils::stringListToDoubleVector(const std::string &iString,
 
 vtkSmartPointer<vtkAbstractArray>
   ttkUtils::csvToVtkArray(const std::string &line) {
-  size_t firstComma = line.find(',', 0);
+  size_t const firstComma = line.find(',', 0);
 
   if(firstComma == std::string::npos)
     return nullptr;
 
-  std::string arrayName = line.substr(0, firstComma);
+  std::string const arrayName = line.substr(0, firstComma);
 
   std::vector<std::string> valuesAsString;
   stringListToVector(
     line.substr(firstComma + 1, std::string::npos), valuesAsString);
-  size_t nValues = valuesAsString.size();
+  size_t const nValues = valuesAsString.size();
   if(nValues < 1)
     return nullptr;
 
@@ -191,17 +198,18 @@ vtkSmartPointer<vtkAbstractArray>
 
 vtkSmartPointer<vtkDoubleArray>
   ttkUtils::csvToDoubleArray(const std::string &line) {
-  size_t firstComma = line.find(',', 0);
+  size_t const firstComma = line.find(',', 0);
 
   if(firstComma == std::string::npos)
     return nullptr;
 
-  std::string arrayName = line.substr(0, firstComma);
-  std::string valuesAsString = line.substr(firstComma + 1, std::string::npos);
+  std::string const arrayName = line.substr(0, firstComma);
+  std::string const valuesAsString
+    = line.substr(firstComma + 1, std::string::npos);
 
   std::vector<double> values;
   ttkUtils::stringListToDoubleVector(valuesAsString, values);
-  size_t n = values.size();
+  size_t const n = values.size();
 
   auto array = vtkSmartPointer<vtkDoubleArray>::New();
   array->SetName(arrayName.data());
@@ -275,11 +283,12 @@ void ttkUtils::SetVoidArray(vtkDataArray *array,
                             void *data,
                             vtkIdType size,
                             int save) {
+
   switch(array->GetDataType()) {
     vtkTemplateMacro(
       auto *aosArray = vtkAOSDataArrayTemplate<VTK_TT>::FastDownCast(array);
       if(aosArray) { aosArray->SetVoidArray(data, size, save); } else {
-        std::cerr << "SetVoidArray on incompatible vtkDataArray:" << endl;
+        std::cerr << "SetVoidArray on incompatible vtkDataArray:" << std::endl;
         array->Print(std::cerr);
       });
   }
@@ -317,4 +326,52 @@ void ttkUtils::FillCellArrayFromDual(vtkIdType const *cells_co,
     }
     cellArray->InsertNextCell(verts);
   }
+}
+
+int ttkUtils::CellVertexFromPoints(vtkDataSet *const dataSet,
+                                   vtkPoints *const points) {
+
+  if(dataSet == nullptr || points == nullptr) {
+    return 0;
+  }
+
+  if(!dataSet->IsA("vtkUnstructuredGrid") && !dataSet->IsA("vtkPolyData")) {
+    return 0;
+  }
+
+  const size_t nPoints = points->GetNumberOfPoints();
+  if(nPoints == 0) {
+    return 0;
+  }
+
+  vtkNew<vtkIdTypeArray> offsets{};
+  offsets->SetNumberOfTuples(nPoints + 1);
+  auto offsetsData = ttkUtils::GetPointer<vtkIdType>(offsets);
+  for(size_t i = 0; i <= nPoints; i++)
+    offsetsData[i] = i;
+
+  vtkNew<vtkIdTypeArray> connectivity{};
+  connectivity->SetNumberOfTuples(nPoints);
+  auto connectivityData = ttkUtils::GetPointer<vtkIdType>(connectivity);
+  for(size_t i = 0; i < nPoints; i++)
+    connectivityData[i] = i;
+
+  vtkNew<vtkCellArray> cells{};
+  cells->SetData(offsets, connectivity);
+
+  if(dataSet->IsA("vtkUnstructuredGrid")) {
+    const auto vtu{vtkUnstructuredGrid::SafeDownCast(dataSet)};
+    if(vtu != nullptr) {
+      vtu->SetPoints(points);
+      vtu->SetCells(VTK_VERTEX, cells);
+    }
+  } else if(dataSet->IsA("vtkPolyData")) {
+    const auto vtp{vtkPolyData::SafeDownCast(dataSet)};
+    if(vtp != nullptr) {
+      vtp->SetPoints(points);
+      vtp->SetVerts(cells);
+    }
+  }
+
+  return 1;
 }

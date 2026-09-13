@@ -17,7 +17,7 @@ template <class ttkModule>
 class ExampleProgram : public Program<ttkModule> {
 
 public:
-  int execute() {
+  int execute() override {
 
     ScalarFieldSmoother *smoother
       = dynamic_cast<ScalarFieldSmoother *>(Program<ttkModule>::ttkModule_);
@@ -38,14 +38,14 @@ public:
     return 0;
   }
 
-  int load(const vector<string> &inputPaths) {
+  int load(const vector<string> &inputPaths) override {
 
     if(inputPaths.empty())
       return -1;
     if(!inputPaths[0].length())
       return -2;
 
-    // choose where to display this message (cout, cerr, a file)
+    // choose where to display this message (std::cout, std::cerr, a file)
     // choose the priority of this message (1, nearly always displayed,
     // higher values mean lower priorities)
     Debug::printMsg("Reading input mesh...");
@@ -122,7 +122,7 @@ public:
     return 0;
   }
 
-  int save() const {
+  int save() const override {
 
     string fileName(Program<ttkModule>::outputPath_ + ".off");
 
@@ -133,16 +133,16 @@ public:
       return -1;
     }
 
-    f << "OFF" << endl;
+    f << "OFF" << std::endl;
     f << pointSet_.size() / 3 << " " << triangleSetOff_.size() - 1 << " 0"
-      << endl;
+      << std::endl;
 
     for(int i = 0; i < (int)pointSet_.size() / 3; i++) {
       for(int j = 0; j < 3; j++) {
         f << pointSet_[3 * i + j];
         f << " ";
       }
-      f << endl;
+      f << std::endl;
     }
 
     for(int i = 0; i < (int)triangleSetOff_.size() - 1; i++) {
@@ -150,7 +150,7 @@ public:
       for(int j = 0; j < 3; j++) {
         f << triangleSetCo_[triangleSetOff_[i] + j] << " ";
       }
-      f << endl;
+      f << std::endl;
     }
 
     f.close();

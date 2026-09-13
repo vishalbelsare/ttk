@@ -32,7 +32,7 @@ private:
   // single ico sphere
   double Center[3]{0, 0, 0};
 
-  // alternatvely create a sphere at each point
+  // alternately create a sphere at each point
   vtkDataArray *Centers{nullptr};
 
 public:
@@ -56,7 +56,7 @@ public:
 
 protected:
   ttkIcosphere();
-  ~ttkIcosphere();
+  ~ttkIcosphere() override;
 
   int FillInputPortInformation(int port, vtkInformation *info) override;
   int FillOutputPortInformation(int port, vtkInformation *info) override;

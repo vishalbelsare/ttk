@@ -38,7 +38,7 @@ int ttk::EigenField::execute(const TriangulationType &triangulation,
   // graph laplacian of current mesh
   SpMat lap;
   // compute graph laplacian using cotangent weights
-  Laplacian::cotanWeights<T>(lap, triangulation);
+  Laplacian::cotanWeights<T>(lap, *this, triangulation);
   // lap is square
   eigen_plain_assert(lap.cols() == lap.rows());
 
@@ -60,7 +60,7 @@ int ttk::EigenField::execute(const TriangulationType &triangulation,
   solver.init();
 
   // number of eigenpairs correctly computed
-  int nconv = solver.compute(Spectra::SortRule::LargestAlge);
+  int const nconv = solver.compute(Spectra::SortRule::LargestAlge);
 
   switch(solver.info()) {
     case Spectra::CompInfo::NumericalIssue:

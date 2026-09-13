@@ -20,8 +20,7 @@ ttkComponentSize::ttkComponentSize() {
                   "`Connectivity' instead.");
 }
 
-ttkComponentSize::~ttkComponentSize() {
-}
+ttkComponentSize::~ttkComponentSize() = default;
 
 int ttkComponentSize::FillInputPortInformation(int port, vtkInformation *info) {
   if(port == 0) {
@@ -44,7 +43,7 @@ int ttkComponentSize::RequestData(vtkInformation *ttkNotUsed(request),
                                   vtkInformationVector **inputVector,
                                   vtkInformationVector *outputVector) {
   ttk::Timer t;
-  size_t threadNumber = this->getThreadNumber();
+  size_t const threadNumber = this->getThreadNumber();
 
   this->printMsg(
     "Computing connected components", 0, 0, ttk::debug::LineMode::REPLACE);
@@ -55,7 +54,7 @@ int ttkComponentSize::RequestData(vtkInformation *ttkNotUsed(request),
   connectivityFilter->ColorRegionsOn();
   connectivityFilter->Update();
 
-  size_t nRegions = connectivityFilter->GetNumberOfExtractedRegions();
+  size_t const nRegions = connectivityFilter->GetNumberOfExtractedRegions();
   if(nRegions < 1) {
     this->printErr("Unable to compute connected components.");
     return 0;
@@ -72,8 +71,8 @@ int ttkComponentSize::RequestData(vtkInformation *ttkNotUsed(request),
   auto output = vtkDataSet::GetData(outputVector);
   output->ShallowCopy(connectivityFilter->GetOutput());
 
-  size_t nVertices = output->GetNumberOfPoints();
-  size_t nCells = output->GetNumberOfCells();
+  size_t const nVertices = output->GetNumberOfPoints();
+  size_t const nCells = output->GetNumberOfCells();
 
   auto vertexIds = (vtkIdType *)ttkUtils::GetVoidPointer(
     output->GetPointData()->GetArray("RegionId"));

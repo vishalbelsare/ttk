@@ -11,20 +11,24 @@
 
 #include <CinemaImaging.h>
 
-#if TTK_ENABLE_EMBREE
+#ifdef TTK_ENABLE_EMBREE
+#ifdef TTK_EMBREE4
+#include <embree4/rtcore.h>
+#else
 #include <embree3/rtcore.h>
+#endif
 #include <limits>
 #include <string>
-#endif
+#endif // TTK_ENABLE_EMBREE
 
 namespace ttk {
 
   class CinemaImagingEmbree : public CinemaImaging {
   public:
     CinemaImagingEmbree();
-    ~CinemaImagingEmbree();
+    ~CinemaImagingEmbree() override;
 
-#if TTK_ENABLE_EMBREE
+#ifdef TTK_ENABLE_EMBREE
 
     int initializeDevice(RTCDevice &device) const;
 
@@ -51,11 +55,11 @@ namespace ttk {
 
     int deallocateScene(RTCDevice &device, RTCScene &scene) const;
 
-#endif
+#endif // TTK_ENABLE_EMBREE
   };
 } // namespace ttk
 
-#if TTK_ENABLE_EMBREE
+#ifdef TTK_ENABLE_EMBREE
 
 template <typename IT>
 int ttk::CinemaImagingEmbree::initializeScene(
@@ -116,4 +120,4 @@ int ttk::CinemaImagingEmbree::initializeScene(
   return 1;
 };
 
-#endif
+#endif // TTK_ENABLE_EMBREE

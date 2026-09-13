@@ -3,10 +3,9 @@
 ttk::CinemaImagingEmbree::CinemaImagingEmbree() {
   this->setDebugMsgPrefix("CinemaImaging(Embree)");
 }
-ttk::CinemaImagingEmbree::~CinemaImagingEmbree() {
-}
+ttk::CinemaImagingEmbree::~CinemaImagingEmbree() = default;
 
-#if TTK_ENABLE_EMBREE
+#ifdef TTK_ENABLE_EMBREE
 
 int ttk::CinemaImagingEmbree::deallocateScene(RTCDevice &device,
                                               RTCScene &scene) const {
@@ -29,7 +28,7 @@ int ttk::CinemaImagingEmbree::initializeDevice(RTCDevice &device) const {
 
   if(!device) {
     this->printErr("Unable to create device");
-    this->printErr(std::to_string(rtcGetDeviceError(NULL)));
+    this->printErr(std::to_string(rtcGetDeviceError(nullptr)));
     return 0;
   }
 
@@ -38,7 +37,7 @@ int ttk::CinemaImagingEmbree::initializeDevice(RTCDevice &device) const {
         printf("error %d: %s\n", error, str);
       };
 
-  rtcSetDeviceErrorFunction(device, errorFunction, NULL);
+  rtcSetDeviceErrorFunction(device, errorFunction, nullptr);
 
   this->printMsg("Initializing Device", 1, timer.getElapsedTime());
 
@@ -67,11 +66,16 @@ int ttk::CinemaImagingEmbree::renderImage(
                    + std::to_string(resX) + "x" + std::to_string(resY) + ")",
                  0, 0, this->threadNumber_, ttk::debug::LineMode::REPLACE);
 
+#ifdef TTK_EMBREE4
+  struct RTCIntersectArguments args;
+  rtcInitIntersectArguments(&args);
+#else
   struct RTCIntersectContext context;
   rtcInitIntersectContext(&context);
+#endif
 
   const auto normalize = [](double out[3], const double in[3]) {
-    double temp = sqrt(in[0] * in[0] + in[1] * in[1] + in[2] * in[2]);
+    const double temp = sqrt(in[0] * in[0] + in[1] * in[1] + in[2] * in[2]);
     out[0] = in[0] / temp;
     out[1] = in[1] / temp;
     out[2] = in[2] / temp;
@@ -99,7 +103,7 @@ int ttk::CinemaImagingEmbree::renderImage(
 
   size_t pixelIndex = 0;
   size_t bcIndex = 0;
-  float nan = std::numeric_limits<float>::quiet_NaN();
+  const float nan = std::numeric_limits<float>::quiet_NaN();
 
   if(orthographicProjection) {
 
@@ -127,10 +131,10 @@ int ttk::CinemaImagingEmbree::renderImage(
                                       - camUpTrue[2] * camHeightWorldHalf};
 
     for(int y = 0; y < resY; y++) {
-      double v = ((double)y) * pixelHeightWorld;
+      const double v = ((double)y) * pixelHeightWorld;
 
       for(int x = 0; x < resX; x++) {
-        double u = ((double)x) * pixelWidthWorld;
+        const double u = ((double)x) * pixelWidthWorld;
 
         // set origin
         rayhit.ray.org_x = camPosCorner[0] + u * camRight[0] + v * camUpTrue[0];
@@ -149,10 +153,14 @@ int ttk::CinemaImagingEmbree::renderImage(
         rayhit.ray.flags = 0;
         rayhit.hit.geomID = RTC_INVALID_GEOMETRY_ID;
         rayhit.hit.instID[0] = RTC_INVALID_GEOMETRY_ID;
+#ifdef TTK_EMBREE4
+        rtcIntersect1(scene, &rayhit, &args);
+#else
         rtcIntersect1(scene, &context, &rayhit);
+#endif
 
         // write depth
-        bool hitPrimitive = rayhit.hit.geomID != RTC_INVALID_GEOMETRY_ID;
+        const bool hitPrimitive = rayhit.hit.geomID != RTC_INVALID_GEOMETRY_ID;
         if(hitPrimitive) {
           depthBuffer[pixelIndex] = std::max(0.0f, rayhit.ray.tfar);
           primitiveIds[pixelIndex] = rayhit.hit.primID;
@@ -169,13 +177,14 @@ int ttk::CinemaImagingEmbree::renderImage(
     }
   } else {
 
-    double factor = (camFactor / 180.0 * 3.141592653589793) / resolution[0];
+    const double factor
+      = (camFactor / 180.0 * 3.141592653589793) / resolution[0];
 
     for(int y = 0; y < resY; y++) {
-      double v = (y - resY * 0.5) * factor;
+      const double v = (y - resY * 0.5) * factor;
 
       for(int x = 0; x < resX; x++) {
-        double u = (x - resX * 0.5) * factor;
+        const double u = (x - resX * 0.5) * factor;
 
         // set origin
         rayhit.ray.org_x = camPos[0];
@@ -194,10 +203,14 @@ int ttk::CinemaImagingEmbree::renderImage(
         rayhit.ray.flags = 0;
         rayhit.hit.geomID = RTC_INVALID_GEOMETRY_ID;
         rayhit.hit.instID[0] = RTC_INVALID_GEOMETRY_ID;
+#ifdef TTK_EMBREE4
+        rtcIntersect1(scene, &rayhit, &args);
+#else
         rtcIntersect1(scene, &context, &rayhit);
+#endif
 
         // write depth
-        bool hitPrimitive = rayhit.hit.geomID != RTC_INVALID_GEOMETRY_ID;
+        const bool hitPrimitive = rayhit.hit.geomID != RTC_INVALID_GEOMETRY_ID;
         if(hitPrimitive) {
           depthBuffer[pixelIndex] = std::max(0.0f, rayhit.ray.tfar);
           primitiveIds[pixelIndex] = rayhit.hit.primID;
@@ -222,4 +235,4 @@ int ttk::CinemaImagingEmbree::renderImage(
   return 1;
 };
 
-#endif
+#endif // TTK_ENABLE_EMBREE

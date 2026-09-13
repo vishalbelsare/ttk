@@ -5,7 +5,7 @@
 ///
 /// \brief TTK VTK-filter that wraps the discreteGradient processing package.
 ///
-/// VTK wrapping code for the @DiscreteGradient package.
+/// VTK wrapping code for the ttk::dcg::DiscreteGradient package.
 ///
 /// \param Input Input scalar field (vtkDataSet)
 /// \param Output Output scalar field (vtkDataSet)
@@ -61,6 +61,12 @@ public:
   vtkSetMacro(ComputeGradientGlyphs, bool);
   vtkGetMacro(ComputeGradientGlyphs, bool);
 
+  vtkSetMacro(Backend, int);
+  vtkGetMacro(Backend, int);
+
+  vtkSetMacro(StochasticGradientSeed, unsigned int);
+  vtkGetMacro(StochasticGradientSeed, unsigned int);
+
 protected:
   ttkDiscreteGradient();
 
@@ -82,4 +88,6 @@ private:
 
   bool ForceInputOffsetScalarField{false};
   bool ComputeGradientGlyphs{true};
+  int Backend{0};
+  unsigned int StochasticGradientSeed{0};
 };

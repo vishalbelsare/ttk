@@ -40,8 +40,7 @@ ttkCinemaDarkroomShader::ttkCinemaDarkroomShader() {
   this->SetNumberOfOutputPorts(1);
 }
 
-ttkCinemaDarkroomShader::~ttkCinemaDarkroomShader() {
-}
+ttkCinemaDarkroomShader::~ttkCinemaDarkroomShader() = default;
 
 int ttkCinemaDarkroomShader::FillInputPortInformation(int port,
                                                       vtkInformation *info) {
@@ -203,7 +202,7 @@ int ttkCinemaDarkroomShader::AddTexture(vtkImageData *image,
     return 0;
   }
 
-  std::string textureName = "tex" + std::to_string(textureIdx);
+  std::string const textureName = "tex" + std::to_string(textureIdx);
 
   auto properties = this->FullScreenQuadActor->GetProperty();
   // if texture already exists remove it

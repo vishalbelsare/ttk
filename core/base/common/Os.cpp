@@ -19,6 +19,7 @@
 #elif defined(__unix__) || defined(__APPLE__)
 
 #include <dirent.h>
+#include <sys/resource.h>
 #include <sys/stat.h>
 #include <sys/types.h>
 #include <unistd.h>
@@ -61,9 +62,31 @@ namespace ttk {
     return 0;
   }
 
+  float OsCall::getTotalMemoryUsage() {
+    int max_use{0};
+#ifdef __linux__
+    int ru_maxrss;
+    struct rusage use;
+    getrusage(RUSAGE_SELF, &use);
+    ru_maxrss = static_cast<int>(use.ru_maxrss);
+#ifdef TTK_ENABLE_MPI
+    if(ttk::hasInitializedMPI()) {
+      MPI_Reduce(
+        &ru_maxrss, &max_use, 1, MPI_INTEGER, MPI_MAX, 0, ttk::MPIcomm_);
+    } else {
+      max_use = ru_maxrss;
+    }
+#else
+    max_use = ru_maxrss;
+#endif // TTK_ENABLE_MPI
+#endif // __linux__
+    // In Kilo Bytes
+    return (double)max_use;
+  }
+
   int OsCall::getNumberOfCores() {
 #ifdef TTK_ENABLE_OPENMP
-    return omp_get_num_procs();
+    return omp_get_max_threads();
 #endif
     return 1;
   }
@@ -153,11 +176,11 @@ namespace ttk {
       msg = "Could not open directory `";
       msg += directoryName;
       msg += "'...";
-      Debug dbg;
+      const Debug dbg;
       dbg.printErr(msg);
     } else {
       struct dirent *dirEntry;
-      while((dirEntry = readdir(d)) != NULL) {
+      while((dirEntry = readdir(d)) != nullptr) {
         if(extension.size()) {
           std::string entryExtension(dirEntry->d_name);
           entryExtension

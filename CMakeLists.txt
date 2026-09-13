@@ -1,6 +1,12 @@
-cmake_minimum_required(VERSION 3.14) # see issue #532
+cmake_minimum_required(VERSION 3.21) # since paraview 5.10
+
+set(CMAKE_POLICY_DEFAULT_CMP0074 NEW)
+set(CMAKE_POLICY_DEFAULT_CMP0092 NEW)
+set(CMAKE_POLICY_DEFAULT_CMP0167 NEW)
+set(CMAKE_POLICY_DEFAULT_CMP0174 NEW)
+
 # The C is required to build with VTK when it has MPI
-project(ttk VERSION 1.1 LANGUAGES CXX C)
+project(ttk VERSION 1.4.0 LANGUAGES CXX C)
 
 if("${PROJECT_SOURCE_DIR}" STREQUAL "${PROJECT_BINARY_DIR}")
   message(FATAL_ERROR "Build in sources is not supported by TTK, please use a separate build folder")
@@ -81,6 +87,9 @@ foreach(module ${TTK_BASECODES})
   elseif(${module} STREQUAL "KdTree")
     LIST(APPEND TTK_HEADER "#include <KDTree.h>\n")
   elseif(${module} STREQUAL "Skeleton")
+    continue()
+  elseif(${module} STREQUAL "WebSocketIO")
+    # avoid the public dependency to websocket++...
     continue()
   else()
     LIST(APPEND  TTK_HEADER "#include <${module}.h>\n")

@@ -17,7 +17,7 @@ int TwoSkeleton::buildCellNeighborsFromEdges(
   printMsg("Building cell neighbors", 0, 0, 1, debug::LineMode::REPLACE);
 
   const SimplexId cellNumber = cellArray.getNbCells();
-  const SimplexId edgeNumber = edgeStars.subvectorsNumber();
+  const SimplexId edgeNumber = edgeStars.size();
   std::vector<SimplexId> offsets(cellNumber + 1);
   // number of neigbhors processed per cell
   std::vector<SimplexId> neighborsId(cellNumber);
@@ -100,8 +100,8 @@ int TwoSkeleton::buildCellNeighborsFromVertices(
 
     for(SimplexId j = 0; j < nbVertCell; j++) {
 
-      SimplexId v0 = cellArray.getCellVertex(cid, j);
-      SimplexId v1 = cellArray.getCellVertex(cid, (j + 1) % nbVertCell);
+      SimplexId const v0 = cellArray.getCellVertex(cid, j);
+      SimplexId const v1 = cellArray.getCellVertex(cid, (j + 1) % nbVertCell);
 
       // perform an intersection of the 2 sorted star lists
       SimplexId pos0 = 0, pos1 = 0;
@@ -247,8 +247,9 @@ int TwoSkeleton::buildTriangleList(
 
   // check parameters consistency (this method is useless in 2D)
   const auto dim = cellArray.getCellVertexNumber(0) - 1;
-  if(dim == 2) {
-    this->printWrn("Calling buildTriangleList is useless in 2D, skipping...");
+  if(dim < 3) {
+    this->printWrn("Calling buildTriangleList is useless in "
+                   + std::to_string(dim) + "D, skipping...");
     return -1;
   }
 
@@ -464,7 +465,7 @@ int TwoSkeleton::buildTriangleEdgeList(
     std::sort(triangleEdgeList[i].begin(), triangleEdgeList[i].end());
   }
 
-  SimplexId triangleNumber = localTriangleList->size();
+  SimplexId const triangleNumber = localTriangleList->size();
 
   printMsg("Built " + std::to_string(triangleNumber) + " triangle edges", 1,
            tm.getElapsedTime(), threadNumber_);
@@ -481,8 +482,7 @@ int TwoSkeleton::buildTriangleLinks(
 #ifndef TTK_ENABLE_KAMIKAZE
   if(triangleList.empty())
     return -1;
-  if((triangleStars.empty())
-     || (triangleStars.subvectorsNumber() != triangleList.size()))
+  if((triangleStars.empty()) || (triangleStars.size() != triangleList.size()))
     return -2;
 #endif
 

@@ -23,9 +23,7 @@
 
 // base code includes
 #include <DynamicTree.h>
-#include <ImplicitTriangulation.h>
-#include <MultiresTriangulation.h>
-#include <OpenMPLock.h>
+#include <MultiresTopology.h>
 
 #include <limits>
 #include <tuple>
@@ -43,32 +41,27 @@ namespace ttk {
    * Compute the persistence diagram of a function on a triangulation.
    * TTK assumes that the input dataset is made of only one connected component.
    */
-  class ProgressiveTopology : public Debug {
+  class ProgressiveTopology : public MultiresTopology {
 
   public:
-    struct PersistencePair {
-      /** first (lower) vertex id */
-      ttk::SimplexId birth{};
-      /** second (higher) vertex id */
-      ttk::SimplexId death{};
-      /** pair type (min-saddle: 0, saddle-saddle: 1, saddle-max: 2) */
-      ttk::SimplexId pairType{};
+    // struct PersistencePair {
+    //   /** first (lower) vertex id */
+    //   ttk::SimplexId birth{};
+    //   /** second (higher) vertex id */
+    //   ttk::SimplexId death{};
+    //   /** pair type (min-saddle: 0, saddle-saddle: 1, saddle-max: 2) */
+    //   ttk::SimplexId pairType{};
 
-      PersistencePair() = default;
-      PersistencePair(const SimplexId b,
-                      const SimplexId d,
-                      const SimplexId pType)
-        : birth{b}, death{d}, pairType{pType} {
-      }
-    };
+    //   PersistencePair() = default;
+    //   PersistencePair(const SimplexId b,
+    //                   const SimplexId d,
+    //                   const SimplexId pType)
+    //     : birth{b}, death{d}, pairType{pType} {
+    //   }
+    // };
 
     ProgressiveTopology() {
       this->setDebugMsgPrefix("ProgressiveTopology");
-    }
-
-    inline void setupTriangulation(ImplicitTriangulation *const data) {
-      triangulation_ = data;
-      multiresTriangulation_.setTriangulation(triangulation_);
     }
 
     /* PROGRESSIVE MODE DECLARATIONS */
@@ -81,13 +74,13 @@ namespace ttk {
     inline void setAlgorithm(int data) {
       computePersistenceDiagram_ = data;
     }
-    inline void setStartingDecimationLevel(int data) {
+    void setStartingDecimationLevel(int data) override {
       if(data != startingDecimationLevel_) {
         resumeProgressive_ = false;
       }
       startingDecimationLevel_ = std::max(data, 0);
     }
-    inline void setStoppingDecimationLevel(int data) {
+    void setStoppingDecimationLevel(int data) override {
       if(data >= stoppingDecimationLevel_) {
         resumeProgressive_ = false;
       }
@@ -99,7 +92,7 @@ namespace ttk {
         resumeProgressive_ = false;
       }
     }
-    inline void setPreallocateMemory(const bool b) {
+    void setPreallocateMemory(const bool b) override {
       if(b != preallocateMemory_) {
         resumeProgressive_ = false;
       }
@@ -112,9 +105,6 @@ namespace ttk {
         this->timeLimit_ = d;
       }
     }
-    inline int getStoppingDecimationLevel() {
-      return this->stoppingDecimationLevel_;
-    }
 
     int computeProgressivePD(std::vector<PersistencePair> &CTDiagram,
                              const SimplexId *offsets);
@@ -123,20 +113,10 @@ namespace ttk {
       std::vector<std::pair<SimplexId, char>> *criticalPoints,
       const SimplexId *offsets);
 
-    void setStartingResolutionLevel(int rl) {
-      this->setStartingDecimationLevel(multiresTriangulation_.RL_to_DL(rl));
-    }
-
-    void setStoppingResolutionLevel(int rl) {
-      this->setStoppingDecimationLevel(multiresTriangulation_.RL_to_DL(rl));
-    }
-
   protected:
     void sortPersistenceDiagram2(std::vector<PersistencePair> &diagram,
                                  const SimplexId *const offsets) const;
 
-    // maximum link size in 3D
-    static const size_t nLink_ = 27;
     using VLBoundaryType
       = std::array<std::vector<std::pair<SimplexId, SimplexId>>, nLink_>;
 
@@ -145,6 +125,7 @@ namespace ttk {
                          std::vector<std::vector<std::pair<polarity, polarity>>>
                            &vertexLinkPolarity,
                          std::vector<polarity> &toProcess,
+                         std::vector<polarity> &toReprocess,
                          std::vector<DynamicTree> &link,
                          std::vector<uint8_t> &vertexLink,
                          VLBoundaryType &vertexLinkByBoundaryType,
@@ -154,8 +135,8 @@ namespace ttk {
     void initSaddleSeeds(std::vector<polarity> &isNew,
                          std::vector<std::vector<std::pair<polarity, polarity>>>
                            &vertexLinkPolarity,
-                         std::vector<polarity> &toPropageMin,
-                         std::vector<polarity> &toPropageMax,
+                         std::vector<polarity> &toPropagateMin,
+                         std::vector<polarity> &toPropagateMax,
                          std::vector<polarity> &toProcess,
                          std::vector<DynamicTree> &link,
                          std::vector<uint8_t> &vertexLink,
@@ -165,8 +146,8 @@ namespace ttk {
                          const SimplexId *const offsets) const;
 
     void initPropagation(
-      std::vector<polarity> &toPropageMin,
-      std::vector<polarity> &toPropageMax,
+      std::vector<polarity> &toPropagateMin,
+      std::vector<polarity> &toPropagateMax,
       std::vector<std::vector<SimplexId>> &vertexRepresentativesMin,
       std::vector<std::vector<SimplexId>> &vertexRepresentativesMax,
       std::vector<std::vector<SimplexId>> &saddleCCMin,
@@ -178,8 +159,8 @@ namespace ttk {
       const SimplexId *const offsets) const;
 
     void updatePropagation(
-      std::vector<polarity> &toPropageMin,
-      std::vector<polarity> &toPropageMax,
+      std::vector<polarity> &toPropagateMin,
+      std::vector<polarity> &toPropagateMax,
       std::vector<std::vector<SimplexId>> &vertexRepresentativesMin,
       std::vector<std::vector<SimplexId>> &vertexRepresentativesMax,
       std::vector<std::vector<SimplexId>> &saddleCCMin,
@@ -206,9 +187,6 @@ namespace ttk {
       const SimplexId *const offsets,
       const bool splitTree) const;
 
-    void buildVertexLinkByBoundary(const SimplexId vertexId,
-                                   VLBoundaryType &vlbt) const;
-
     void initDynamicLink(const SimplexId &vertexId,
                          std::vector<std::pair<polarity, polarity>> &vlp,
                          uint8_t &vertexLink,
@@ -217,17 +195,10 @@ namespace ttk {
                          const SimplexId *const offsets) const;
 
     char getCriticalTypeFromLink(
-      const std::vector<std::pair<polarity, polarity>> &vlp,
-      DynamicTree &link) const;
-
-    void getValencesFromLink(
-      const SimplexId vertexId,
+      const SimplexId globalId,
       const std::vector<std::pair<polarity, polarity>> &vlp,
       DynamicTree &link,
-      std::vector<polarity> &toPropageMin,
-      std::vector<polarity> &toPropageMax,
-      std::vector<std::vector<SimplexId>> &saddleCCMin,
-      std::vector<std::vector<SimplexId>> &saddleCCMax) const;
+      polarity &reprocess) const;
 
     void
       updateDynamicLink(DynamicTree &link,
@@ -250,8 +221,8 @@ namespace ttk {
       updateSaddleSeeds(std::vector<polarity> &isNew,
                         std::vector<std::vector<std::pair<polarity, polarity>>>
                           &vertexLinkPolarity,
-                        std::vector<polarity> &toPropageMin,
-                        std::vector<polarity> &toPropageMax,
+                        std::vector<polarity> &toPropagateMin,
+                        std::vector<polarity> &toPropagateMax,
                         std::vector<polarity> &toProcess,
                         std::vector<polarity> &toReprocess,
                         std::vector<DynamicTree> &link,
@@ -275,10 +246,10 @@ namespace ttk {
                             std::vector<std::pair<polarity, polarity>> &vlp,
                             const SimplexId *const offsets) const;
 
-    ttk::SimplexId propageFromSaddles(
+    ttk::SimplexId propagateFromSaddles(
       const SimplexId vertexId,
       std::vector<Lock> &vertLock,
-      std::vector<polarity> &toPropage,
+      std::vector<polarity> &toPropagate,
       std::vector<std::vector<SimplexId>> &vertexRepresentatives,
       std::vector<std::vector<SimplexId>> &saddleCC,
       std::vector<polarity> &isUpdated,
@@ -286,40 +257,23 @@ namespace ttk {
       const SimplexId *const offsets,
       const bool splitTree) const;
 
-    void getTripletsFromSaddles(
-      const SimplexId vertexId,
-      std::vector<triplet> &triplets,
-      const std::vector<std::vector<SimplexId>> &vertexReps) const;
-
     void computePersistencePairsFromSaddles(
       std::vector<PersistencePair> &CTDiagram,
       const SimplexId *const offsets,
       std::vector<std::vector<SimplexId>> &vertexRepresentativesMin,
       std::vector<std::vector<SimplexId>> &vertexRepresentativesMax,
-      const std::vector<polarity> &toPropageMin,
-      const std::vector<polarity> &toPropageMax) const;
+      const std::vector<polarity> &toPropagateMin,
+      const std::vector<polarity> &toPropagateMax) const;
 
     double predictNextIterationDuration(const double currItDuration,
                                         const size_t nCurrPairs) const;
 
     void stopComputationIf(const bool b);
     void clearResumableState();
-    std::string resolutionInfoString();
-
-    ImplicitTriangulation *triangulation_{};
-
-    // new non-progressive approach
-    MultiresTriangulation multiresTriangulation_{};
-
-    // store the two global extrema extracted from the whole dataset vertices
-    // sorting operation
-    mutable SimplexId globalMax_{}, globalMin_{};
 
     // progressive approach
     int computePersistenceDiagram_{1};
-    int decimationLevel_{};
-    int startingDecimationLevel_{};
-    int stoppingDecimationLevel_{};
+
     // do some extra computations to allow to resume computation
     bool isResumable_{false};
     bool resumeProgressive_{false};
@@ -342,6 +296,5 @@ namespace ttk {
     std::vector<std::vector<SimplexId>> saddleCCMin_{};
     std::vector<std::vector<SimplexId>> saddleCCMax_{};
     std::vector<char> vertexTypes_{};
-    std::vector<PersistencePair> CTDiagram_;
   };
 } // namespace ttk
